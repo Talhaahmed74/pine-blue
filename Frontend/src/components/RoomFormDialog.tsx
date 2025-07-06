@@ -20,7 +20,7 @@ export interface Room {
   floor: number;
   amenities: string[];
 }
-
+const backendURL = import.meta.env.VITE_BACKEND_URL;
 const roomTypeOptions = ["Standard", "Deluxe", "Suite", "Penthouse"] as const;
 
 const roomFormSchema = z.object({
@@ -94,7 +94,7 @@ export const RoomFormDialog = ({
 
   const addRoom = async (data: RoomFormData) => {
     try {
-      const response = await fetch("http://localhost:8000/rooms", {
+      const response = await fetch(`${backendURL}/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -134,7 +134,7 @@ export const RoomFormDialog = ({
     if (!editingRoom) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/rooms/${editingRoom.room_number}`, {
+        const response = await fetch(`${backendURL}/rooms/${editingRoom.room_number}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
