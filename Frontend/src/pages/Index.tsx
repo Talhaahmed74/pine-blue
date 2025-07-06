@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { HotelBookingForm } from "@/components/HotelBookingForm";
+import { HotelBookingForm} from "@/components/HotelBookingForm"
 import { BookingDashboard } from "@/components/BookingDashboard";
 import { RoomManagement } from "@/components/RoomManagement";
 import { BookingAnalytics } from "@/components/BookingAnalytics";
@@ -10,12 +10,16 @@ import { IntegrationManagement } from "@/components/IntegrationManagement";
 import { HotelNavbar } from "@/components/HotelNavbar";
 import { Calendar, Users, Settings, BarChart3, MapPin } from "lucide-react";
 
-const Index = () => {
+interface IndexProps {
+  onLogout: () => void;
+}
+
+const Index = ({ onLogout }: IndexProps) => {
   const [activeTab, setActiveTab] = useState("booking");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <HotelNavbar />
+      <HotelNavbar onLogout={onLogout} />
       
       <div className="container mx-auto px-4 py-6">
         <div className="mb-8">
