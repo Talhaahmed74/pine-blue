@@ -13,6 +13,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sendBookingEmail } from "@/components/emailService";
 
+
+const backendURL = import.meta.env.VITE_BACKEND_URL;
 // Toast Component
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
@@ -98,7 +100,7 @@ export const HotelBookingForm = () => {
 
     setIsLoadingRooms(true);
     try {
-      const response = await fetch(`http://localhost:8000/available-rooms/${capitalizeFirst(roomType)}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`);
+      const response = await fetch(`${backendURL}/available-rooms/${capitalizeFirst(roomType)}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`);
       const data = await response.json();
       setAvailableRooms(data.available_rooms || []);
     } catch (err) {
@@ -209,7 +211,7 @@ export const HotelBookingForm = () => {
         }
       };
 
-      const response = await fetch("http://localhost:8000/book-room", {
+      const response = await fetch(`${backendURL}/book-room`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

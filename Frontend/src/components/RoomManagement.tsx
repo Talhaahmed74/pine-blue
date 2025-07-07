@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const backendURL = import.meta.env.VITE_BACKEND_URL;
 export const RoomManagement = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +34,7 @@ export const RoomManagement = () => {
   const fetchRooms = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:8000/rooms");
+      const response = await fetch(`${backendURL}/rooms`);
       if (!response.ok) {
         throw new Error("Failed to fetch rooms");
       }
@@ -63,7 +64,7 @@ export const RoomManagement = () => {
 
   const handleDelete = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/rooms/${deleteConfirm.roomNumber}`, {
+      const response = await fetch(`${backendURL}/rooms/${deleteConfirm.roomNumber}`, {
         method: "DELETE",
       });
 

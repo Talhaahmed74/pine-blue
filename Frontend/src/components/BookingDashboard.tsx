@@ -21,13 +21,14 @@ export const BookingDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [deletingBookingId, setDeletingBookingId] = useState(null);
 
+  const backendURL = import.meta.env.VITE_BACKEND_URL;
   const handleDelete = async (bookingId: string) => {
     if (!window.confirm(`Are you sure you want to delete booking ${bookingId}? This action cannot be undone.`)) return;
   
     setDeletingBookingId(bookingId);
     
     try {
-      const response = await axios.delete(`http://localhost:8000/delete-booking/${bookingId}`);
+      const response = await axios.delete(`${backendURL}/delete-booking/${bookingId}`);
       
       // Remove the deleted booking from the list
       setRecentBookings((prev) => prev.filter((b) => b.id !== bookingId));
@@ -64,8 +65,8 @@ export const BookingDashboard = () => {
       setIsLoading(true);
       try {
         const [summaryRes, bookingsRes] = await Promise.all([
-          axios.get("http://localhost:8000/dashboard/summary"),
-          axios.get("http://localhost:8000/dashboard/bookings")
+          axios.get("${backendURL}/dashboard/summary"),
+          axios.get("${backendURL}/dashboard/bookings")
         ]);
 
         const summary = summaryRes.data;
