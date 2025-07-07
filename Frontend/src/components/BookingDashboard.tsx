@@ -65,8 +65,8 @@ export const BookingDashboard = () => {
       setIsLoading(true);
       try {
         const [summaryRes, bookingsRes] = await Promise.all([
-          axios.get("${backendURL}/dashboard/summary"),
-          axios.get("${backendURL}/dashboard/bookings")
+          axios.get(`${backendURL}/dashboard/summary`),
+          axios.get(`${backendURL}/dashboard/bookings`)
         ]);
 
         const summary = summaryRes.data;
