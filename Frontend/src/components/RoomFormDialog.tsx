@@ -1,71 +1,88 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import * as React from "react";
-import { toast } from "@/components/ui/use-toast";
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import * as React from "react"
+import { toast } from "@/components/ui/use-toast"
 
 export interface Room {
-  room_number: string;
-  room_type: string;
-  status: "Available" | "Occupied" | "Maintenance";
-  price: number;
-  capacity: number;
-  floor: number;
-  amenities: string[];
+  room_number: string
+  room_type: string
+  status: "Available" | "Occupied" | "Maintenance"
+  price: number
+  capacity: number
+  floor: number
+  amenities: string[]
 }
-const backendURL = import.meta.env.VITE_BACKEND_URL;
-const roomTypeOptions = ["Standard", "Deluxe", "Suite", "Penthouse"] as const;
+
+interface RoomType {
+  id: number
+  name: string
+  base_price: number
+  is_available: boolean
+  amenities: string[]
+  max_adults: number
+  max_children: number
+  total_capacity: number
+}
 
 const roomFormSchema = z.object({
   room_number: z.string().min(1, "Room number is required"),
   room_type: z.string().min(1, "Room type is required"),
   status: z.enum(["Available", "Occupied", "Maintenance"]),
-  price: z.number().min(1, "Price must be greater than 0"),
-  capacity: z.number().min(1, "Capacity must be at least 1"),
   floor: z.number().min(1, "Floor must be at least 1"),
-  amenities: z.array(z.string()).min(1, "At least one amenity is required"),
-});
+})
 
-type RoomFormData = z.infer<typeof roomFormSchema>;
-
-const amenityOptions = ["WiFi", "TV", "AC", "Balcony", "Jacuzzi", "Kitchen"];
+type RoomFormData = z.infer<typeof roomFormSchema>
 
 interface RoomFormDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  editingRoom?: Room | null;
-  onRoomAdded: () => void;
-  onRoomUpdated: () => void;
+  isOpen: boolean
+  onClose: () => void
+  editingRoom?: Room | null
+  onRoomAdded: () => void
+  onRoomUpdated: () => void
 }
 
-export const RoomFormDialog = ({ 
-  isOpen, 
-  onClose, 
-  editingRoom, 
-  onRoomAdded, 
-  onRoomUpdated 
-}: RoomFormDialogProps) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRoomUpdated }: RoomFormDialogProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
+  const [selectedRoomType, setSelectedRoomType] = useState<RoomType | null>(null)
 
   const form = useForm<RoomFormData>({
     resolver: zodResolver(roomFormSchema),
     defaultValues: {
       room_number: "",
-      room_type: "Standard",
+      room_type: "",
       status: "Available",
-      price: 0,
-      capacity: 1,
       floor: 1,
-      amenities: [],
     },
-  });
+  })
+
+  // Fetch available room types
+  const fetchRoomTypes = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/room-types/available/list")
+      if (response.ok) {
+        const data = await response.json()
+        setRoomTypes(data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch room types:", error)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchRoomTypes()
+    }
+  }, [isOpen])
 
   // Update form when editingRoom changes
   React.useEffect(() => {
@@ -74,127 +91,132 @@ export const RoomFormDialog = ({
         room_number: editingRoom.room_number,
         room_type: editingRoom.room_type,
         status: editingRoom.status,
-        price: editingRoom.price,
-        capacity: editingRoom.capacity,
         floor: editingRoom.floor,
-        amenities: editingRoom.amenities,
-      });
+      })
+
+      // Find and set the selected room type
+      const roomType = roomTypes.find((rt) => rt.name === editingRoom.room_type)
+      setSelectedRoomType(roomType || null)
     } else {
       form.reset({
         room_number: "",
-        room_type: "Standard",
+        room_type: "",
         status: "Available",
-        price: 0,
-        capacity: 1,
         floor: 1,
-        amenities: [],
-      });
+      })
+      setSelectedRoomType(null)
     }
-  }, [editingRoom, form]);
+  }, [editingRoom, form, roomTypes])
+
+  // Handle room type selection
+  const handleRoomTypeChange = (roomTypeName: string) => {
+    const roomType = roomTypes.find((rt) => rt.name === roomTypeName)
+    setSelectedRoomType(roomType || null)
+    form.setValue("room_type", roomTypeName)
+  }
 
   const addRoom = async (data: RoomFormData) => {
     try {
-      const response = await fetch(`${backendURL}/rooms`, {
+      const response = await fetch("http://localhost:8000/rooms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           room_number: data.room_number,
-          type: data.room_type,
+          room_type: data.room_type,
           status: data.status,
-          price: data.price,
-          capacity: data.capacity,
           floor: data.floor,
-          amenities: data.amenities,
         }),
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to add room");
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Failed to add room")
       }
 
       toast({
         title: "Success",
         description: "Room added successfully!",
-      });
-      
-      onRoomAdded();
-      handleClose();
-    } catch (error) {
+      })
+
+      onRoomAdded()
+      handleClose()
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to add room. Please try again.",
+        description: error.message || "Failed to add room. Please try again.",
         variant: "destructive",
-      });
+      })
     }
-  };
+  }
 
   const updateRoom = async (data: RoomFormData) => {
-    if (!editingRoom) return;
+    if (!editingRoom) return
 
     try {
-        const response = await fetch(`${backendURL}/rooms/${editingRoom.room_number}`, {
+      const response = await fetch(`http://localhost:8000/rooms/${editingRoom.room_number}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          room_number: data.room_number,
-          type: data.room_type,
           status: data.status,
-          price: data.price,
-          capacity: data.capacity,
-          floor: data.floor,
-          amenities: data.amenities,
         }),
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to update room");
+        const errorData = await response.json()
+        const errorMessage = errorData?.detail || "Failed to update room."
+
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+        return
       }
 
       toast({
         title: "Success",
         description: "Room updated successfully!",
-      });
-      
-      onRoomUpdated();
-      handleClose();
+      })
+
+      onRoomUpdated()
+      handleClose()
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update room. Please try again.",
+        description: "Something went wrong. Please try again.",
         variant: "destructive",
-      });
+      })
     }
-  };
+  }
 
   const onSubmit = async (data: RoomFormData) => {
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
       if (editingRoom) {
-        await updateRoom(data);
+        await updateRoom(data)
       } else {
-        await addRoom(data);
+        await addRoom(data)
       }
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleClose = () => {
-    form.reset();
-    onClose();
-  };
+    form.reset()
+    setSelectedRoomType(null)
+    onClose()
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
         <DialogHeader>
-          <DialogTitle>
-            {editingRoom ? "Edit Room" : "Add New Room"}
-          </DialogTitle>
+          <DialogTitle>{editingRoom ? "Edit Room" : "Add New Room"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -217,17 +239,17 @@ export const RoomFormDialog = ({
               name="room_type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>Room Type</FormLabel>
+                  <Select onValueChange={handleRoomTypeChange} value={field.value} disabled={!!editingRoom}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select room type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {roomTypeOptions.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
+                      {roomTypes.map((roomType) => (
+                        <SelectItem key={roomType.id} value={roomType.name}>
+                          {roomType.name} - ₨{roomType.base_price.toLocaleString()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -236,6 +258,18 @@ export const RoomFormDialog = ({
                 </FormItem>
               )}
             />
+
+            {/* Room Type Details Display */}
+            {selectedRoomType && (
+              <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                <h4 className="font-medium text-sm">Room Type Details:</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>Price: ₨{selectedRoomType.base_price.toLocaleString()}</div>
+                  <div>Capacity: {selectedRoomType.total_capacity} guests</div>
+                  <div className="col-span-2">Amenities: {selectedRoomType.amenities.join(", ")}</div>
+                </div>
+              </div>
+            )}
 
             <FormField
               control={form.control}
@@ -260,46 +294,6 @@ export const RoomFormDialog = ({
               )}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price (₨)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        placeholder="35000" 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="capacity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Capacity</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                        placeholder="2" 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
             <FormField
               control={form.control}
               name="floor"
@@ -307,11 +301,12 @@ export const RoomFormDialog = ({
                 <FormItem>
                   <FormLabel>Floor</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      placeholder="1" 
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                      placeholder="1"
+                      disabled={!!editingRoom}
                     />
                   </FormControl>
                   <FormMessage />
@@ -319,54 +314,8 @@ export const RoomFormDialog = ({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="amenities"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Amenities</FormLabel>
-                  <div className="grid grid-cols-2 gap-2">
-                    {amenityOptions.map((amenity) => (
-                      <FormField
-                        key={amenity}
-                        control={form.control}
-                        name="amenities"
-                        render={({ field }) => {
-                          return (
-                            <FormItem
-                              key={amenity}
-                              className="flex flex-row items-start space-x-3 space-y-0"
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(amenity)}
-                                  onCheckedChange={(checked) => {
-                                    return checked
-                                      ? field.onChange([...field.value, amenity])
-                                      : field.onChange(
-                                          field.value?.filter(
-                                            (value) => value !== amenity
-                                          )
-                                        )
-                                  }}
-                                />
-                              </FormControl>
-                              <FormLabel className="text-sm font-normal">
-                                {amenity}
-                              </FormLabel>
-                            </FormItem>
-                          )
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto">
+              <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto bg-transparent">
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
@@ -377,5 +326,5 @@ export const RoomFormDialog = ({
         </Form>
       </DialogContent>
     </Dialog>
-  );
-};
+  )
+}

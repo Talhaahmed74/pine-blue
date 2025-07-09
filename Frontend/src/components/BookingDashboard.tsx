@@ -21,14 +21,15 @@ export const BookingDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [deletingBookingId, setDeletingBookingId] = useState(null);
 
-  const backendURL = import.meta.env.VITE_BACKEND_URL;
+  // const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const handleDelete = async (bookingId: string) => {
     if (!window.confirm(`Are you sure you want to delete booking ${bookingId}? This action cannot be undone.`)) return;
   
     setDeletingBookingId(bookingId);
     
     try {
-      const response = await axios.delete(`${backendURL}/delete-booking/${bookingId}`);
+      const response = await axios.delete(`http://localhost:8000/delete-booking/${bookingId}`);
+      // const response = await axios.delete(`${API_BASE_URL}/delete-booking/${bookingId}`);
       
       // Remove the deleted booking from the list
       setRecentBookings((prev) => prev.filter((b) => b.id !== bookingId));
@@ -59,69 +60,72 @@ export const BookingDashboard = () => {
     );
   };
 
-  // ✅ Fetch stats and bookings
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      setIsLoading(true);
-      try {
-        const [summaryRes, bookingsRes] = await Promise.all([
-          axios.get(`${backendURL}/dashboard/summary`),
-          axios.get(`${backendURL}/dashboard/bookings`)
-        ]);
+// ✅ Fetch stats and bookings
+useEffect(() => {
+  const fetchDashboard = async () => {
+    setIsLoading(true);
+    try {
+      const [summaryRes, bookingsRes] = await Promise.all([
+        axios.get("http://localhost:8000/dashboard/summary"),
+        // axios.get(`${API_BASE_URL}/dashboard/summary`),
+        axios.get("http://localhost:8000/dashboard/bookings"),
+        // axios.get(`${API_BASE_URL}/dashboard/bookings`)
+      ]);
 
-        const summary = summaryRes.data;
-        const bookings = bookingsRes.data.bookings.slice(0, 10); // Get 4 recent
+      const summary = summaryRes.data;
+      const bookings = bookingsRes.data.bookings.slice(0, 10); // Get 4 recent
 
-        setStats([
-          {
-            title: "Total Bookings",
-            value: summary.total_bookings,
-            change: "+12%",
-            icon: Calendar,
-            color: "text-blue-600",
-            bgColor: "bg-blue-50"
-          },
-          {
-            title: "Occupied Rooms",
-            value: summary.occupied_rooms,
-            change: "70%",
-            icon: Hotel,
-            color: "text-green-600",
-            bgColor: "bg-green-50"
-          },
-          {
-            title: "Revenue Today",
-            value: summary.revenue_today,
-            change: "+8.5%",
-            icon: DollarSign,
-            color: "text-purple-600",
-            bgColor: "bg-purple-50"
-          },
-          {
-            title: "Total Guests",
-            value: summary.total_guests,
-            change: "+15%",
-            icon: Users,
-            color: "text-orange-600",
-            bgColor: "bg-orange-50"
-          }
-        ]);
+      setStats([
+        {
+          title: "Total Bookings",
+          value: summary.total_bookings,
+          change: "+12%",
+          icon: Calendar,
+          color: "text-blue-600",
+          bgColor: "bg-blue-50"
+        },
+        {
+          title: "Occupied Rooms",
+          value: summary.occupied_rooms,
+          change: "70%",
+          icon: Hotel,
+          color: "text-green-600",
+          bgColor: "bg-green-50"
+        },
+        {
+          title: "Revenue Today",
+          value: summary.revenue_today,
+          change: "+8.5%",
+          icon: DollarSign,
+          color: "text-purple-600",
+          bgColor: "bg-purple-50"
+        },
+        {
+          title: "Total Guests",
+          value: summary.total_guests,
+          change: "+15%",
+          icon: Users,
+          color: "text-orange-600",
+          bgColor: "bg-orange-50"
+        }
+      ]);
 
-        setRecentBookings(bookings);
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
-        toast({
-          title: "Loading Failed",
-          description: "Failed to load dashboard data. Please refresh the page.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      setRecentBookings(bookings);
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
+      toast({
+        title: "Loading Failed",
+        description: "Failed to load dashboard data. Please refresh the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchDashboard();
-  }, []);
+  fetchDashboard();
+}, []);
+
 
   const getStatusColor = (status: string) => {
     switch (status) {

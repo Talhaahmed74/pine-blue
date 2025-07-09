@@ -1,46 +1,68 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Calendar as CalendarIcon, Users, Hotel, CreditCard, FileText, AlertCircle, CheckCircle, X, Loader2 } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { sendBookingEmail } from "@/components/emailService";
+"use client"
 
+import type React from "react"
 
-const backendURL = import.meta.env.VITE_BACKEND_URL;
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { CalendarIcon, Users, Hotel, CreditCard, FileText, AlertCircle, CheckCircle, X, Loader2 } from "lucide-react"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+import { sendBookingEmail } from "@/components/emailService"
+
+interface RoomType {
+  id: number
+  name: string
+  base_price: number
+  max_adults: number
+  max_children: number
+  total_capacity: number
+  amenities: string[]
+}
+
+interface AvailableRoom {
+  room_number: string
+  room_type: string
+  price: number
+  capacity: number
+  amenities: string[]
+}
+
 // Toast Component
-const Toast = ({ message, type, onClose }) => {
+const Toast = ({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
-      onClose();
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
+      onClose()
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [onClose])
 
-  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
-  const icon = type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />;
+  const bgColor = type === "success" ? "bg-green-500" : "bg-red-500"
+  const icon = type === "success" ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />
 
   return (
-    <div className={`fixed top-4 right-4 z-50 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-md`}>
+    <div
+      className={`fixed top-4 right-4 z-50 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-md`}
+    >
       {icon}
       <span className="flex-1">{message}</span>
       <button onClick={onClose} className="text-white hover:text-gray-200">
         <X className="h-4 w-4" />
       </button>
     </div>
-  );
-};
+  )
+}
 
 export const HotelBookingForm = () => {
-  const [checkInDate, setCheckInDate] = useState<Date>();
-  const [checkOutDate, setCheckOutDate] = useState<Date>();
+  const [checkInDate, setCheckInDate] = useState<Date>()
+  const [checkOutDate, setCheckOutDate] = useState<Date>()
   const [formData, setFormData] = useState({
     guests: 1,
     roomType: "",
@@ -55,192 +77,224 @@ export const HotelBookingForm = () => {
     vat: 16,
     totalAmount: 0,
     paymentMethod: "Cash",
-    paymentStatus: "Pending"
-  });
+    paymentStatus: "Pending",
+  })
 
-  const roomTypes = [
-    { id: "standard", name: "Standard Room", price: 35000, features: ["WiFi", "TV", "AC"] },
-    { id: "deluxe", name: "Deluxe Room", price: 52500, features: ["WiFi", "TV", "AC", "Balcony"] },
-    { id: "suite", name: "Suite", price: 81700, features: ["WiFi", "TV", "AC", "Balcony", "Jacuzzi"] },
-    { id: "penthouse", name: "Penthouse", price: 131300, features: ["WiFi", "TV", "AC", "Balcony", "Jacuzzi", "Kitchen"] }
-  ];
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
+  const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false)
+  const [isLoadingRoomTypes, setIsLoadingRoomTypes] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const [dateError, setDateError] = useState("")
 
-  const [availableRooms, setAvailableRooms] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [dateError, setDateError] = useState("");
+  // Fetch room types on component mount
+  useEffect(() => {
+    fetchRoomTypes()
+  }, [])
 
   // Validate dates whenever they change
   useEffect(() => {
     if (checkInDate && checkOutDate) {
       if (checkInDate >= checkOutDate) {
-        setDateError("Check-out date must be after check-in date");
+        setDateError("Check-out date must be after check-in date")
       } else {
-        setDateError("");
+        setDateError("")
       }
     } else {
-      setDateError("");
+      setDateError("")
     }
-  }, [checkInDate, checkOutDate]);
+  }, [checkInDate, checkOutDate])
 
   // Fetch available rooms when conditions are met
   useEffect(() => {
     if (formData.roomType && checkInDate && checkOutDate && !dateError) {
-      fetchAvailableRooms(formData.roomType);
+      fetchAvailableRooms(formData.roomType)
     } else {
-      setAvailableRooms([]);
+      setAvailableRooms([])
     }
-  }, [formData.roomType, checkInDate, checkOutDate, dateError]);
+  }, [formData.roomType, checkInDate, checkOutDate, dateError])
 
-  const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const fetchRoomTypes = async () => {
+    setIsLoadingRoomTypes(true)
+    try {
+      const response = await fetch("http://localhost:8000/room-types/available")
+      if (!response.ok) throw new Error("Failed to fetch room types")
+
+      const data = await response.json()
+      setRoomTypes(data)
+    } catch (err) {
+      console.error("Error fetching room types:", err)
+      showToast("Failed to load room types", "error")
+    } finally {
+      setIsLoadingRoomTypes(false)
+    }
+  }
 
   const fetchAvailableRooms = async (roomType: string) => {
-    if (!checkInDate || !checkOutDate || dateError) return;
+    if (!checkInDate || !checkOutDate || dateError) return
 
-    setIsLoadingRooms(true);
+    setIsLoadingRooms(true)
     try {
-      const response = await fetch(`${backendURL}/available-rooms/${capitalizeFirst(roomType)}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`);
-      const data = await response.json();
-      setAvailableRooms(data.available_rooms || []);
+      const response = await fetch(
+        `http://localhost:8000/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
+      )
+
+      if (!response.ok) throw new Error("Failed to fetch available rooms")
+
+      const data = await response.json()
+      setAvailableRooms(data.available_rooms || [])
     } catch (err) {
-      console.error("Error fetching available rooms:", err);
-      setAvailableRooms([]);
+      console.error("Error fetching available rooms:", err)
+      setAvailableRooms([])
+      showToast("Failed to load available rooms", "error")
     } finally {
-      setIsLoadingRooms(false);
+      setIsLoadingRooms(false)
     }
-  };
+  }
 
   const handleInputChange = (field: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }))
 
-    // When room type changes, fetch available rooms and reset room number
+    // When room type changes, reset room number and validate guests
     if (field === "roomType") {
-      setFormData(prev => ({ ...prev, roomNumber: "" }));
+      setFormData((prev) => ({ ...prev, roomNumber: "" }))
+
+      // Check if current guest count exceeds new room type capacity
+      const selectedRoomType = roomTypes.find((rt) => rt.name === value)
+      if (selectedRoomType && formData.guests > selectedRoomType.total_capacity) {
+        showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
+        setFormData((prev) => ({ ...prev, guests: selectedRoomType.total_capacity }))
+      }
     }
-  };
+
+    // Validate guest count when changed
+    if (field === "guests" && formData.roomType) {
+      const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+      if (selectedRoomType && (value as number) > selectedRoomType.total_capacity) {
+        showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
+        return // Don't update if exceeds capacity
+      }
+    }
+  }
 
   // Handle check-in date change with validation
   const handleCheckInChange = (date: Date | undefined) => {
-    setCheckInDate(date);
+    setCheckInDate(date)
     // If check-out date is before or equal to new check-in date, clear it
     if (date && checkOutDate && date >= checkOutDate) {
-      setCheckOutDate(undefined);
+      setCheckOutDate(undefined)
     }
-  };
+  }
 
   // Handle check-out date change with validation
   const handleCheckOutChange = (date: Date | undefined) => {
-    setCheckOutDate(date);
-  };
+    setCheckOutDate(date)
+  }
 
   // Calculate total amount based on room type, discount, and VAT
   const calculateTotal = () => {
-    const selectedRoom = roomTypes.find(room => room.id === formData.roomType);
-    if (!selectedRoom || !checkInDate || !checkOutDate) return 0;
+    const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+    if (!selectedRoomType || !checkInDate || !checkOutDate) return 0
 
-    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1);
-    const baseAmount = selectedRoom.price * nights;
-    const discountAmount = (baseAmount * formData.discount) / 100;
-    const vatAmount = ((baseAmount - discountAmount) * formData.vat) / 100;
-    return baseAmount - discountAmount + vatAmount;
-  };
+    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
+    const baseAmount = selectedRoomType.base_price * nights
+    const discountAmount = (baseAmount * formData.discount) / 100
+    const vatAmount = ((baseAmount - discountAmount) * formData.vat) / 100
+    return baseAmount - discountAmount + vatAmount
+  }
 
   // Update total when relevant fields change
   useEffect(() => {
-    const total = calculateTotal();
-    setFormData(prev => ({ ...prev, totalAmount: total }));
-  }, [formData.roomType, formData.discount, formData.vat, checkInDate, checkOutDate]);
+    const total = calculateTotal()
+    setFormData((prev) => ({ ...prev, totalAmount: total }))
+  }, [formData.roomType, formData.discount, formData.vat, checkInDate, checkOutDate, roomTypes])
 
-  const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-  };
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     // Validate dates before submission
     if (!checkInDate || !checkOutDate) {
-      showToast("Please select both check-in and check-out dates", "error");
-      return;
+      showToast("Please select both check-in and check-out dates", "error")
+      return
     }
-
     if (checkInDate >= checkOutDate) {
-      showToast("Check-out date must be after check-in date", "error");
-      return;
+      showToast("Check-out date must be after check-in date", "error")
+      return
     }
-
     if (!formData.roomNumber) {
-      showToast("Please select a room number", "error");
-      return;
+      showToast("Please select a room number", "error")
+      return
     }
 
-    setIsLoading(true);
-    
+    // Validate guest capacity
+    const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+    if (selectedRoomType && formData.guests > selectedRoomType.total_capacity) {
+      showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for this room type`, "error")
+      return
+    }
+
+    setIsLoading(true)
+
     try {
-      const selectedRoom = roomTypes.find(room => room.id === formData.roomType);
-      if (!selectedRoom) {
-        throw new Error("Room type not found");
-      }
-
-      const nights = checkInDate && checkOutDate 
-        ? Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
-        : 1;
-
       const requestData = {
         booking: {
           check_in: checkInDate?.toISOString().split("T")[0],
           check_out: checkOutDate?.toISOString().split("T")[0],
           guests: formData.guests,
           room_number: formData.roomNumber,
-          room_type: capitalizeFirst(formData.roomType),
+          room_type: formData.roomType,
           first_name: formData.firstName,
           last_name: formData.lastName,
           email: formData.email,
-          phone: parseInt(formData.phone),
+          phone: Number.parseInt(formData.phone),
           status: formData.status,
           source: formData.source,
         },
         billing: {
           booking_id: "temp", // This will be ignored by the backend
-          room_price: selectedRoom.price,
+          room_price: selectedRoomType?.base_price || 0,
           discount: formData.discount,
           vat: formData.vat,
           payment_method: formData.paymentMethod,
           payment_status: formData.paymentStatus,
-        }
-      };
+        },
+      }
 
-      const response = await fetch(`${backendURL}/book-room`, {
+      const response = await fetch("http://localhost:8000/book-room", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestData),
-      });
+      })
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Booking failed");
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Booking failed")
       }
 
-      const result = await response.json();
-      
+      const result = await response.json()
+
       // Send booking email after successful booking
       try {
         await sendBookingEmail({
           ...formData,
           checkin_date: checkInDate?.toISOString().split("T")[0],
-          checkout_date: checkOutDate?.toISOString().split("T")[0]
-        });
+          checkout_date: checkOutDate?.toISOString().split("T")[0],
+        })
       } catch (emailError) {
-        console.error("Email sending failed:", emailError);
+        console.error("Email sending failed:", emailError)
         // Don't fail the booking if email fails
       }
-      
+
       // Show success toast
-      showToast(`Booking Successful! Booking ID: ${result.booking_id}`, "success");
-      
+      showToast(`Booking Successful! Booking ID: ${result.booking_id}`, "success")
+
       // Reset form
       setFormData({
         guests: 1,
@@ -256,50 +310,43 @@ export const HotelBookingForm = () => {
         vat: 16,
         totalAmount: 0,
         paymentMethod: "Cash",
-        paymentStatus: "Pending"
-      });
-      setCheckInDate(undefined);
-      setCheckOutDate(undefined);
-      setAvailableRooms([]);
-      
+        paymentStatus: "Pending",
+      })
+      setCheckInDate(undefined)
+      setCheckOutDate(undefined)
+      setAvailableRooms([])
     } catch (err: any) {
-      console.error("Booking error:", err);
-      showToast(`Booking Failed: ${err.message}`, "error");
+      console.error("Booking error:", err)
+      showToast(`Booking Failed: ${err.message}`, "error")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleGenerateSlip = () => {
     console.log("Generating slip for:", {
       ...formData,
       checkIn: checkInDate,
       checkOut: checkOutDate,
-    });
-    showToast("Slip Generated! Your booking slip has been generated and will be downloaded shortly.", "success");
-  };
+    })
+    showToast("Slip Generated! Your booking slip has been generated and will be downloaded shortly.", "success")
+  }
+
+  const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
 
   return (
     <>
-      {toast && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast(null)} 
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <Card className="shadow-lg border-blue-100 max-w-4xl mx-auto">
         <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
           <CardTitle className="flex items-center gap-2">
             <Hotel className="h-5 w-5" />
             Book Your Room
           </CardTitle>
-          <CardDescription className="text-blue-100">
-            Find and reserve the perfect room for your stay
-          </CardDescription>
+          <CardDescription className="text-blue-100">Find and reserve the perfect room for your stay</CardDescription>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
-          <div onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Date Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -313,7 +360,7 @@ export const HotelBookingForm = () => {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !checkInDate && "text-muted-foreground"
+                        !checkInDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -342,7 +389,7 @@ export const HotelBookingForm = () => {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !checkOutDate && "text-muted-foreground"
+                        !checkOutDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -375,14 +422,20 @@ export const HotelBookingForm = () => {
               <Label htmlFor="guests" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Number of Guests
+                {selectedRoomType && (
+                  <span className="text-sm text-gray-500">
+                    (Max: {selectedRoomType.total_capacity} - {selectedRoomType.max_adults}A +{" "}
+                    {selectedRoomType.max_children}C)
+                  </span>
+                )}
               </Label>
               <Input
                 id="guests"
                 type="number"
                 min="1"
-                max="8"
+                max={selectedRoomType?.total_capacity || 8}
                 value={formData.guests}
-                onChange={(e) => handleInputChange("guests", parseInt(e.target.value))}
+                onChange={(e) => handleInputChange("guests", Number.parseInt(e.target.value))}
                 required
               />
             </div>
@@ -390,31 +443,43 @@ export const HotelBookingForm = () => {
             {/* Room Type Selection */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Select Room Type</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {roomTypes.map((room) => (
-                  <div
-                    key={room.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      formData.roomType === room.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-blue-300"
-                    }`}
-                    onClick={() => handleInputChange("roomType", room.id)}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
-                      <h3 className="font-medium">{room.name}</h3>
-                      <span className="font-bold text-blue-600 text-sm sm:text-base">₨{room.price.toLocaleString()}/night</span>
+              {isLoadingRoomTypes ? (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-md">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading room types...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {roomTypes.map((roomType) => (
+                    <div
+                      key={roomType.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        formData.roomType === roomType.name
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-blue-300"
+                      }`}
+                      onClick={() => handleInputChange("roomType", roomType.name)}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+                        <h3 className="font-medium">{roomType.name}</h3>
+                        <span className="font-bold text-blue-600 text-sm sm:text-base">
+                          ₨{roomType.base_price.toLocaleString()}/night
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-2">
+                        Capacity: {roomType.max_adults} Adults + {roomType.max_children} Children
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {roomType.amenities.map((amenity) => (
+                          <Badge key={amenity} variant="secondary" className="text-xs">
+                            {amenity}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {room.features.map((feature) => (
-                        <Badge key={feature} variant="secondary" className="text-xs">
-                          {feature}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Room Number Selection */}
@@ -424,7 +489,6 @@ export const HotelBookingForm = () => {
                   <Hotel className="h-4 w-4" />
                   Available Rooms
                 </Label>
-
                 {/* Warning if dates not selected */}
                 {(!checkInDate || !checkOutDate) && (
                   <div className="flex items-center gap-2 p-3 bg-yellow-50 text-yellow-700 rounded-md">
@@ -432,7 +496,6 @@ export const HotelBookingForm = () => {
                     <span>Please select both check-in and check-out dates to see available rooms.</span>
                   </div>
                 )}
-
                 {/* Date error warning */}
                 {dateError && (
                   <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-md">
@@ -440,7 +503,6 @@ export const HotelBookingForm = () => {
                     <span>Please fix the date selection to see available rooms.</span>
                   </div>
                 )}
-
                 {/* If dates are selected and valid, show available rooms or loading */}
                 {checkInDate && checkOutDate && !dateError && (
                   <>
@@ -459,8 +521,8 @@ export const HotelBookingForm = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {availableRooms.map((room) => (
-                            <SelectItem key={room} value={room}>
-                              Room {room}
+                            <SelectItem key={room.room_number} value={room.room_number}>
+                              Room {room.room_number} - ₨{room.price.toLocaleString()}/night
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -503,7 +565,7 @@ export const HotelBookingForm = () => {
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <Input
-                    id="email" 
+                    id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
@@ -559,7 +621,10 @@ export const HotelBookingForm = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="paymentMethod">Payment Method</Label>
-                  <Select value={formData.paymentMethod} onValueChange={(value) => handleInputChange("paymentMethod", value)}>
+                  <Select
+                    value={formData.paymentMethod}
+                    onValueChange={(value) => handleInputChange("paymentMethod", value)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment method" />
                     </SelectTrigger>
@@ -572,7 +637,10 @@ export const HotelBookingForm = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentStatus">Payment Status</Label>
-                  <Select value={formData.paymentStatus} onValueChange={(value) => handleInputChange("paymentStatus", value)}>
+                  <Select
+                    value={formData.paymentStatus}
+                    onValueChange={(value) => handleInputChange("paymentStatus", value)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment status" />
                     </SelectTrigger>
@@ -592,7 +660,7 @@ export const HotelBookingForm = () => {
                     min="0"
                     max="100"
                     value={formData.discount}
-                    onChange={(e) => handleInputChange("discount", parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleInputChange("discount", Number.parseFloat(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -603,7 +671,7 @@ export const HotelBookingForm = () => {
                     min="0"
                     max="100"
                     value={formData.vat}
-                    onChange={(e) => handleInputChange("vat", parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleInputChange("vat", Number.parseFloat(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -621,12 +689,11 @@ export const HotelBookingForm = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col md:flex-row gap-3">
-              <Button 
-                type="submit" 
-                className="w-full md:flex-1 bg-blue-600 hover:bg-blue-700 h-12 text-base font-medium" 
+              <Button
+                type="submit"
+                className="w-full md:flex-1 bg-blue-600 hover:bg-blue-700 h-12 text-base font-medium"
                 size="lg"
                 disabled={isLoading || dateError !== ""}
-                onClick={handleSubmit}
               >
                 {isLoading ? (
                   <>
@@ -640,20 +707,20 @@ export const HotelBookingForm = () => {
                   </>
                 )}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={handleGenerateSlip}
                 size="lg"
-                className="w-full md:w-auto md:min-w-[160px] h-12 text-base font-medium border-2 border-blue-200 hover:border-blue-300 hover:bg-blue-50"
+                className="w-full md:w-auto md:min-w-[160px] h-12 text-base font-medium border-2 border-blue-200 hover:border-blue-300 hover:bg-blue-50 bg-transparent"
               >
                 <FileText className="h-5 w-5 mr-2" />
                 Generate Slip
               </Button>
             </div>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </>
-  );
-};
+  )
+}
