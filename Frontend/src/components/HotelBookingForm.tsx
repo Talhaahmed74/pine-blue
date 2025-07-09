@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -65,7 +64,7 @@ export const HotelBookingForm = () => {
   const [checkOutDate, setCheckOutDate] = useState<Date>()
   const [formData, setFormData] = useState({
     guests: 1,
-    roomType: "",
+    roomTypeId: 0, // Changed to use room type ID
     roomNumber: "",
     firstName: "",
     lastName: "",
@@ -78,6 +77,7 @@ export const HotelBookingForm = () => {
     totalAmount: 0,
     paymentMethod: "Cash",
     paymentStatus: "Pending",
+    specialRequests: "", // Added special requests
   })
 
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
@@ -108,19 +108,19 @@ export const HotelBookingForm = () => {
 
   // Fetch available rooms when conditions are met
   useEffect(() => {
-    if (formData.roomType && checkInDate && checkOutDate && !dateError) {
-      fetchAvailableRooms(formData.roomType)
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
+    if (selectedRoomType && checkInDate && checkOutDate && !dateError) {
+      fetchAvailableRooms(selectedRoomType.name)
     } else {
       setAvailableRooms([])
     }
-  }, [formData.roomType, checkInDate, checkOutDate, dateError])
+  }, [formData.roomTypeId, checkInDate, checkOutDate, dateError, roomTypes])
 
   const fetchRoomTypes = async () => {
     setIsLoadingRoomTypes(true)
     try {
       const response = await fetch("http://localhost:8000/room-types/available")
       if (!response.ok) throw new Error("Failed to fetch room types")
-
       const data = await response.json()
       setRoomTypes(data)
     } catch (err) {
@@ -133,15 +133,12 @@ export const HotelBookingForm = () => {
 
   const fetchAvailableRooms = async (roomType: string) => {
     if (!checkInDate || !checkOutDate || dateError) return
-
     setIsLoadingRooms(true)
     try {
       const response = await fetch(
         `http://localhost:8000/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
       )
-
       if (!response.ok) throw new Error("Failed to fetch available rooms")
-
       const data = await response.json()
       setAvailableRooms(data.available_rooms || [])
     } catch (err) {
@@ -157,11 +154,10 @@ export const HotelBookingForm = () => {
     setFormData((prev) => ({ ...prev, [field]: value }))
 
     // When room type changes, reset room number and validate guests
-    if (field === "roomType") {
+    if (field === "roomTypeId") {
       setFormData((prev) => ({ ...prev, roomNumber: "" }))
-
       // Check if current guest count exceeds new room type capacity
-      const selectedRoomType = roomTypes.find((rt) => rt.name === value)
+      const selectedRoomType = roomTypes.find((rt) => rt.id === value)
       if (selectedRoomType && formData.guests > selectedRoomType.total_capacity) {
         showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
         setFormData((prev) => ({ ...prev, guests: selectedRoomType.total_capacity }))
@@ -169,8 +165,8 @@ export const HotelBookingForm = () => {
     }
 
     // Validate guest count when changed
-    if (field === "guests" && formData.roomType) {
-      const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+    if (field === "guests") {
+      const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
       if (selectedRoomType && (value as number) > selectedRoomType.total_capacity) {
         showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
         return // Don't update if exceeds capacity
@@ -194,7 +190,7 @@ export const HotelBookingForm = () => {
 
   // Calculate total amount based on room type, discount, and VAT
   const calculateTotal = () => {
-    const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
     if (!selectedRoomType || !checkInDate || !checkOutDate) return 0
 
     const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
@@ -208,7 +204,7 @@ export const HotelBookingForm = () => {
   useEffect(() => {
     const total = calculateTotal()
     setFormData((prev) => ({ ...prev, totalAmount: total }))
-  }, [formData.roomType, formData.discount, formData.vat, checkInDate, checkOutDate, roomTypes])
+  }, [formData.roomTypeId, formData.discount, formData.vat, checkInDate, checkOutDate, roomTypes])
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type })
@@ -232,40 +228,29 @@ export const HotelBookingForm = () => {
     }
 
     // Validate guest capacity
-    const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
     if (selectedRoomType && formData.guests > selectedRoomType.total_capacity) {
       showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for this room type`, "error")
       return
     }
 
     setIsLoading(true)
-
     try {
+      // Use the new admin booking format
       const requestData = {
-        booking: {
-          check_in: checkInDate?.toISOString().split("T")[0],
-          check_out: checkOutDate?.toISOString().split("T")[0],
-          guests: formData.guests,
-          room_number: formData.roomNumber,
-          room_type: formData.roomType,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          phone: Number.parseInt(formData.phone),
-          status: formData.status,
-          source: formData.source,
-        },
-        billing: {
-          booking_id: "temp", // This will be ignored by the backend
-          room_price: selectedRoomType?.base_price || 0,
-          discount: formData.discount,
-          vat: formData.vat,
-          payment_method: formData.paymentMethod,
-          payment_status: formData.paymentStatus,
-        },
+        room_type_id: formData.roomTypeId,
+        user_id: null, // Admin bookings have null user_id
+        guest_name: `${formData.firstName} ${formData.lastName}`,
+        guest_email: formData.email,
+        guest_phone: formData.phone,
+        check_in: checkInDate?.toISOString().split("T")[0],
+        check_out: checkOutDate?.toISOString().split("T")[0],
+        total_amount: formData.totalAmount,
+        special_requests: formData.specialRequests,
+        status: formData.status,
       }
 
-      const response = await fetch("http://localhost:8000/book-room", {
+      const response = await fetch("http://localhost:8000/admin/bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -298,7 +283,7 @@ export const HotelBookingForm = () => {
       // Reset form
       setFormData({
         guests: 1,
-        roomType: "",
+        roomTypeId: 0,
         roomNumber: "",
         firstName: "",
         lastName: "",
@@ -311,6 +296,7 @@ export const HotelBookingForm = () => {
         totalAmount: 0,
         paymentMethod: "Cash",
         paymentStatus: "Pending",
+        specialRequests: "",
       })
       setCheckInDate(undefined)
       setCheckOutDate(undefined)
@@ -332,7 +318,7 @@ export const HotelBookingForm = () => {
     showToast("Slip Generated! Your booking slip has been generated and will be downloaded shortly.", "success")
   }
 
-  const selectedRoomType = roomTypes.find((rt) => rt.name === formData.roomType)
+  const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
 
   return (
     <>
@@ -341,9 +327,9 @@ export const HotelBookingForm = () => {
         <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
           <CardTitle className="flex items-center gap-2">
             <Hotel className="h-5 w-5" />
-            Book Your Room
+            Admin - Book Room
           </CardTitle>
-          <CardDescription className="text-blue-100">Find and reserve the perfect room for your stay</CardDescription>
+          <CardDescription className="text-blue-100">Create booking for guests via admin interface</CardDescription>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -454,11 +440,11 @@ export const HotelBookingForm = () => {
                     <div
                       key={roomType.id}
                       className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        formData.roomType === roomType.name
+                        formData.roomTypeId === roomType.id
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-blue-300"
                       }`}
-                      onClick={() => handleInputChange("roomType", roomType.name)}
+                      onClick={() => handleInputChange("roomTypeId", roomType.id)}
                     >
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
                         <h3 className="font-medium">{roomType.name}</h3>
@@ -483,7 +469,7 @@ export const HotelBookingForm = () => {
             </div>
 
             {/* Room Number Selection */}
-            {formData.roomType && (
+            {formData.roomTypeId > 0 && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Hotel className="h-4 w-4" />
@@ -583,13 +569,22 @@ export const HotelBookingForm = () => {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="specialRequests">Special Requests</Label>
+                <Input
+                  id="specialRequests"
+                  value={formData.specialRequests}
+                  onChange={(e) => handleInputChange("specialRequests", e.target.value)}
+                  placeholder="Any special requests or notes..."
+                />
+              </div>
             </div>
 
             <Separator />
 
             {/* Billing Information */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Billing Information</h3>
+              <h3 className="text-lg font-semibold">Booking Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
@@ -605,82 +600,12 @@ export const HotelBookingForm = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="source">Source</Label>
-                  <Select value={formData.source} onValueChange={(value) => handleInputChange("source", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Direct">Direct</SelectItem>
-                      <SelectItem value="Online">Online</SelectItem>
-                      <SelectItem value="Phone">Phone</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Payment Method</Label>
-                  <Select
-                    value={formData.paymentMethod}
-                    onValueChange={(value) => handleInputChange("paymentMethod", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Cash">Cash</SelectItem>
-                      <SelectItem value="Card">Card</SelectItem>
-                      <SelectItem value="Online">Online</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paymentStatus">Payment Status</Label>
-                  <Select
-                    value={formData.paymentStatus}
-                    onValueChange={(value) => handleInputChange("paymentStatus", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Paid">Paid</SelectItem>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="discount">Discount (%)</Label>
-                  <Input
-                    id="discount"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.discount}
-                    onChange={(e) => handleInputChange("discount", Number.parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vat">VAT (%)</Label>
-                  <Input
-                    id="vat"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.vat}
-                    onChange={(e) => handleInputChange("vat", Number.parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="totalAmount">Total Amount (₨)</Label>
                   <Input
                     id="totalAmount"
                     type="number"
                     value={formData.totalAmount.toFixed(2)}
-                    readOnly
+                    onChange={(e) => handleInputChange("totalAmount", Number.parseFloat(e.target.value) || 0)}
                     className="bg-gray-50"
                   />
                 </div>
