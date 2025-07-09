@@ -38,13 +38,13 @@ Move to the frontend folder:
     cd Frontend
     npm install
     npm run dev
-`   ```
+   ```
 Create a .env file in the Frontend directory:
     ```bash
-    VITE_EMAILJS_SERVICE_ID=service_o3ks0kc
-    VITE_EMAILJS_TEMPLATE_ID=template_eknjb1v
-    VITE_EMAILJS_USER_ID=TU8YR_SCuiRvsjZIi
-    VITE_EMAILJS_API=https://api.emailjs.com/api/v1.0/email/send
+       VITE_EMAILJS_SERVICE_ID=service_o3ks0kc
+       VITE_EMAILJS_TEMPLATE_ID=template_eknjb1v
+       VITE_EMAILJS_USER_ID=TU8YR_SCuiRvsjZIi
+       VITE_EMAILJS_API=https://api.emailjs.com/api/v1.0/email/send
     ```
 👥 Frontend-Customer (Customer View)
 Go back to the root and move to the customer frontend:
