@@ -46,8 +46,10 @@ Create a .env file in the Frontend directory:
        VITE_EMAILJS_USER_ID=TU8YR_SCuiRvsjZIi
        VITE_EMAILJS_API=https://api.emailjs.com/api/v1.0/email/send
     ```
-👥 Frontend-Customer (Customer View)
+
+#👥 Frontend-Customer (Customer View)
 Go back to the root and move to the customer frontend:
+
    ```bash
    cd ..
    cd frontend-customer
