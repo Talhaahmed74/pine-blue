@@ -1,0 +1,116 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hotel booking theme with warm hospitality colors */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 43 74% 66%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 25 95% 53%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 25 95% 53%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 25 95% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations for hotel website */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out;
+}
+.container.mx-auto.px-4 {
+    width: 1200px !important;
+}
+section.py-24.bg-white.who-bg {
+    background-color: #e7eeef;
+}
+section.py-24.bg-white.room-bg {
+    background-color: #f9f9f9 !important;
+}
+section.py-24.bg-white.service-bg {
+    background-color: #f5f4f4;
+}
+.bg-primary {
+    background-color: #4f74f3 !important;
+}
+.text-primary {
+    color: hsl(226.46deg 87.23% 63.14%);
+}
+.to-orange-500 {
+    --tw-gradient-to: #4f74f3 var(--tw-gradient-to-position) !important;
+}
+.from-primary {
+    --tw-gradient-from: hsl(226.46deg 87.23% 63.14%) var(--tw-gradient-from-position) !important;
+   
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.hover\:text-primary:hover {
+    color: hsl(226.46deg 87.23% 63.14%) !important;
+}
+.hover\:border-primary:hover {
+    border-color: hsl(226.46deg 87.23% 63.14%) !important;
+}
