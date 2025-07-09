@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom"
 import Header from "@/components/Header"
 import HeroSection from "@/components/HeroSection"
 import WhyChooseSection from "@/components/WhyChooseSection"
+import FormSection from "@/components/FormSection"
 import FeaturedRooms from "@/components/FeaturedRooms"
 import ServicesSection from "@/components/ServicesSection"
 import MountainSection from "@/components/MountainSection"
@@ -51,6 +52,7 @@ const Home = () => {
       <Header />
       <HeroSection />
       <WhyChooseSection />
+      <FormSection />
       <FeaturedRooms />
       <ServicesSection />
       <MountainSection />

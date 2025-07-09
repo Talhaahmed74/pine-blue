@@ -12,17 +12,14 @@ const Footer = () => {
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
                 <img 
-                  src="/lovable-uploads/2e23905a-ab75-4a6c-945b-869752d435de.png" 
+                  src="/lovable-uploads/logo-white.png" 
                   alt="Blue Pine Resort" 
                   className="h-12 w-auto"
                 />
-                <div className="flex flex-col">
-                  <span className="text-2xl font-bold">Blue Pine</span>
-                  <span className="text-sm text-gray-400 -mt-1">RESORT</span>
-                </div>
+                
               </div>
               <p className="text-gray-300 mb-6 leading-relaxed max-w-md">
-                Experience unparalleled luxury and comfort in Mumbai's most prestigious location. Blue Pine Resort redefines hospitality with world-class amenities and personalized service.
+                Experience unparalleled luxury and comfort in Murree most prestigious location. Blue Pine Resort redefines hospitality with world-class amenities and personalized service.
               </p>
               <div className="flex space-x-4">
                 <a href="#" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-primary transition-colors">
@@ -76,7 +73,7 @@ const Footer = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <p className="text-gray-400 text-sm">
-              &copy; 2024 Blue Pine Resort. All rights reserved.
+              &copy; 2025 Blue Pine Resort. All rights reserved.
             </p>
             <div className="flex space-x-6 text-sm text-gray-400">
               <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>

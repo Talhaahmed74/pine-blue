@@ -4,39 +4,19 @@ import clsx from "clsx";
 
 const ServicesSection = () => {
   const services = [
-    {
-      icon: Building,
-      title: "TOP RESTAURANT",
-      subtitle: "Breakfast & Dinner",
-      images: [
-        "/lovable-uploads/services-home3-07.webp",
-        "/lovable-uploads/services-home3-13.webp",
-        "/lovable-uploads/services-home3-08-768x290.webp",
-        "/lovable-uploads/services-home3-02v.webp"
-      ]
-    },
+    
     {
       icon: Key,
-      title: "BEST SUITES",
+      title: "BEST ROOMS",
       subtitle: "Cool View",
       images: [
-        "/lovable-uploads/room1.webp",
-        "/lovable-uploads/room2.webp",
-        "/lovable-uploads/room3.webp",
-        "/lovable-uploads/room4.webp"
+        "/lovable-uploads/room5.jpg",
+        "/lovable-uploads/room4.jpg",
+        "/lovable-uploads/room6.jpg",
+        "/lovable-uploads/room4.jpg"
       ]
     },
-    {
-      icon: Car,
-      title: "SWIMMING POOL",
-      subtitle: "Open Daily",
-      images: [
-        "/lovable-uploads/pool1.webp",
-        "/lovable-uploads/pool2.webp",
-        "/lovable-uploads/pool3.webp",
-        "/lovable-uploads/pool4.webp"
-      ]
-    }
+  
   ];
 
   const [activeTab, setActiveTab] = useState(0);
@@ -45,7 +25,7 @@ const ServicesSection = () => {
     <section className="py-24 bg-white service-bg">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-10">
-          <h2 className="text-4xl font-light text-gray-900">OUR SERVICE</h2>
+          <h2 className="text-4xl font-light text-gray-900">Gellery</h2>
           <a href="#" className="text-primary font-medium flex items-center gap-1 text-sm">
             SEE MORE <span className="text-lg">→</span>
           </a>

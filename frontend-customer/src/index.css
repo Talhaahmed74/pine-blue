@@ -114,3 +114,76 @@ section.py-24.bg-white.service-bg {
 .hover\:border-primary:hover {
     border-color: hsl(226.46deg 87.23% 63.14%) !important;
 }
+/* kisi bhi component ke CSS me */
+.custom-title {
+  font-family: 'Tarajan Pro', serif;
+}
+h1.text-6xl.md\:text-7xl.font-light.text-white.mb-6.animate-fade-in-up {
+    font-family: 'Playfair Display', serif !important;
+    font-weight: 600 !important;
+}
+h2.text-4xl.md\:text-5xl.font-light.text-gray-900.leading-tight
+
+ {
+   font-family: 'Playfair Display', serif !important;
+    font-weight: 600 !important;
+    font-size: 60px !important;
+}
+h2.text-4xl.md\:text-5xl.font-light.text-gray-900.mb-6 {
+    font-family: 'Playfair Display', serif !important;
+    font-weight: 600 !important;
+    font-size: 60px !important;
+}
+h2.text-4xl.font-light.text-gray-900 {
+    font-family: 'Playfair Display', serif !important;
+    font-weight: 600 !important;
+    font-size: 60px !important;
+}
+.text-center.max-w-4xl.mx-auto {
+    position: relative;
+    top: 131px;
+}
+img.rounded-lg.object-cover.w-full.h-64 {
+    height: 502px !important;
+}
+button.inline-flex.items-center.justify-center.gap-2.whitespace-nowrap.ring-offset-background.transition-colors.focus-visible\:outline-none.focus-visible\:ring-2.focus-visible\:ring-ring.focus-visible\:ring-offset-2.disabled\:pointer-events-none.disabled\:opacity-50.\[\&_svg\]\:pointer-events-none.\[\&_svg\]\:size-4.\[\&_svg\]\:shrink-0.h-10.bg-teal-600.hover\:bg-teal-700.text-white.font-semibold.text-sm.px-6.py-3.rounded-md.w-full.md\:w-auto {
+    height: 96px;
+    width: 200px;
+    background-color: #4f74f3 !important;
+}
+.max-w-6xl.mx-auto.bg-white.rounded-xl.shadow-md.flex.flex-col.md\:flex-row.items-center.justify-between.pl-6.gap-6 {
+    height: 96px;
+    max-width: 72.5rem !important;
+}
+img.absolute.top-0.left-0.w-full.h-full.object-contain.z-\[100\] {
+    width: 1920px !important;
+    height: 1080px !important;
+}
+img.absolute.top-0.left-0.w-full.h-full.object-contain.z-50{
+   width: 1920px !important;
+    height: 1080px !important;
+}
+img.absolute.top-0.left-0.w-full.h-full.object-contain.z-40{
+
+    width: 1920px !important;
+    height: 1080px !important;
+}
+img.absolute.top-0.left-0.w-full.h-full.object-contain.z-30{
+
+  width: 1920px !important;
+    height: 1080px !important;
+}
+img.absolute.top-0.left-0.w-\[100vw\].h-\[100vh\].object-cover.z-XX{
+
+  width: 1920px !important;
+    height: 1080px !important;
+
+}
+h1.text-5xl.md\:text-7xl.font-bold.text-white.drop-shadow-lg {
+    font-family: 'Playfair Display', serif !important;
+}
+a.text-gray-700.hover\:text-primary.transition-colors.font-medium{
+
+  font-family: 'Playfair Display', serif !important;
+
+}

@@ -1,0 +1,14 @@
+/* Tarajan Pro font face declare */
+@font-face {
+  font-family: 'Tarajan Pro';
+  src: url('./TarajanPro.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Birds of Paradise';
+  src: url('/fonts/BirdsOfParadise.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+

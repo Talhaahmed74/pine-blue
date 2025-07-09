@@ -61,7 +61,7 @@ const Header = () => {
           <div className="flex items-center justify-between h-20">
             <Link to="/" className="flex items-center space-x-3">
               <img
-                src="/lovable-uploads/2e23905a-ab75-4a6c-945b-869752d435de.png"
+                src="/lovable-uploads/logo.png"
                 alt="Blue Pine Resort"
                 className="h-12 w-auto"
                 onError={(e) => {
@@ -69,10 +69,7 @@ const Header = () => {
                   e.currentTarget.style.display = "none"
                 }}
               />
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold text-gray-900">Blue Pine</span>
-                <span className="text-sm text-gray-600 -mt-1">RESORT</span>
-              </div>
+              
             </Link>
 
             {/* Desktop Navigation */}
