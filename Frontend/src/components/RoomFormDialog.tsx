@@ -65,16 +65,28 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
     },
   })
 
-  // Fetch available room types
+  // Fetch available room types - FIXED: Correct API endpoint
   const fetchRoomTypes = async () => {
     try {
-      const response = await fetch("http://localhost:8000/room-types/available/list")
+      const response = await fetch("http://localhost:8000/room-types/available")
       if (response.ok) {
         const data = await response.json()
         setRoomTypes(data)
+      } else {
+        console.error("Failed to fetch room types:", response.statusText)
+        toast({
+          title: "Error",
+          description: "Failed to load room types",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Failed to fetch room types:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load room types",
+        variant: "destructive",
+      })
     }
   }
 
@@ -93,7 +105,6 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
         status: editingRoom.status,
         floor: editingRoom.floor,
       })
-
       // Find and set the selected room type
       const roomType = roomTypes.find((rt) => rt.name === editingRoom.room_type)
       setSelectedRoomType(roomType || null)
@@ -139,7 +150,6 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
         title: "Success",
         description: "Room added successfully!",
       })
-
       onRoomAdded()
       handleClose()
     } catch (error: any) {
@@ -168,7 +178,6 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
       if (!response.ok) {
         const errorData = await response.json()
         const errorMessage = errorData?.detail || "Failed to update room."
-
         toast({
           title: "Error",
           description: errorMessage,
@@ -181,7 +190,6 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
         title: "Success",
         description: "Room updated successfully!",
       })
-
       onRoomUpdated()
       handleClose()
     } catch (error) {
@@ -247,11 +255,15 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {roomTypes.map((roomType) => (
-                        <SelectItem key={roomType.id} value={roomType.name}>
-                          {roomType.name} - ₨{roomType.base_price.toLocaleString()}
-                        </SelectItem>
-                      ))}
+                      {roomTypes.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-gray-500">No available room types</div>
+                      ) : (
+                        roomTypes.map((roomType) => (
+                          <SelectItem key={roomType.id} value={roomType.name}>
+                            {roomType.name} - ₨{roomType.base_price.toLocaleString()}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -285,7 +297,8 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Available">Available</SelectItem>
-                      <SelectItem value="Occupied">Occupied</SelectItem>
+                      {/* Only show Occupied option for editing existing rooms */}
+                      {editingRoom && <SelectItem value="Occupied">Occupied</SelectItem>}
                       <SelectItem value="Maintenance">Maintenance</SelectItem>
                     </SelectContent>
                   </Select>
