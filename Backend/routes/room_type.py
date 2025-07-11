@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from models.rtype import RoomType, RoomTypeCreate, RoomTypeUpdate, RoomTypeResponse
 from supabase_client import supabase
+import logging
 
 router = APIRouter()
 
@@ -24,23 +25,24 @@ def get_room_types():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/room-types/available", response_model=List[RoomTypeResponse])
-def get_available_room_types_for_booking():
-    """Get available room types for customer booking with pricing"""
+@router.get("/room-types/list", response_model=List[RoomTypeResponse])
+def get_room_types_for_admin():
+    """Get all room types for the admin (for creating rooms)"""
     try:
-        result = supabase.table("room_types").select("*").eq("is_available", True).execute()
+        result = supabase.table("room_types").select("*").execute()
         room_types = []
         
         for room_type in result.data:
             room_type_response = RoomTypeResponse(
                 **room_type,
-                total_capacity=room_type["max_adults"] + room_type["max_children"]
+                total_capacity=(room_type.get("max_adults") or 2) + (room_type.get("max_children") or 1)
             )
             room_types.append(room_type_response)
         
         return room_types
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/room-types/available-for-booking", response_model=dict)
 def get_available_room_types_for_featured_rooms():
@@ -60,21 +62,50 @@ def get_available_room_types_for_featured_rooms():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/room-types/{room_type_id}", response_model=RoomTypeResponse)
+@router.get("/room-types/{room_type_id}")
 def get_room_type(room_type_id: int):
     """Get a specific room type by ID"""
     try:
+        logging.info(f"🔍 Fetching room type with ID: {room_type_id}")
+
+        # Fetch room_type
         result = supabase.table("room_types").select("*").eq("id", room_type_id).execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Room type not found")
-        
+
         room_type = result.data[0]
-        return RoomTypeResponse(
+
+        # ✅ Fetch ALL rooms (no filtering here)
+        all_rooms_result = supabase.table("rooms") \
+            .select("room_number, status") \
+            .eq("room_type_id", room_type_id) \
+            .execute()
+
+        room_list = all_rooms_result.data or []
+        total_rooms_count = len(room_list)
+
+        # ✅ Filter rooms that are NOT in 'Maintenance'
+        usable_rooms = [room for room in room_list if room["status"] != "Maintenance"]
+        available_rooms_count = len(usable_rooms)
+
+        actual_availability = available_rooms_count > 0
+
+        logging.info(f"✅ Room type found: {room_type}")
+        logging.info(f"🛏️ Usable Rooms: {available_rooms_count}/{total_rooms_count}")
+        logging.info(f"🚦 is_available: {actual_availability}")
+
+        return {
             **room_type,
-            total_capacity=room_type["max_adults"] + room_type["max_children"]
-        )
+            "total_capacity": room_type.get("max_adults", 2) + room_type.get("max_children", 1),
+            "is_available": actual_availability,
+            "available_rooms_count": available_rooms_count,
+            "total_rooms_count": total_rooms_count
+        }
+
     except Exception as e:
+        logging.error(f"❌ Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/room-types", response_model=RoomTypeResponse)
 def create_room_type(room_type: RoomTypeCreate):

@@ -159,7 +159,7 @@ const Admin = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ₹{statsLoading ? "Loading..." : (stats?.todayRevenue || 0).toLocaleString()}
+                  Rs{statsLoading ? "Loading..." : (stats?.todayRevenue || 0).toLocaleString()}
                 </div>
                 <p className="text-xs text-muted-foreground">Revenue from completed payments</p>
               </CardContent>
@@ -198,7 +198,7 @@ const Admin = () => {
                         <p className="text-sm text-gray-500">
                           {format(new Date(booking.check_in), 'MMM dd, yyyy')} to {format(new Date(booking.check_out), 'MMM dd, yyyy')}
                         </p>
-                        <p className="text-sm font-medium">₹{Number(booking.total_amount).toLocaleString()}</p>
+                        <p className="text-sm font-medium">Rs{Number(booking.total_amount).toLocaleString()}</p>
                         {booking.guest_email && <p className="text-xs text-gray-500">{booking.guest_email}</p>}
                       </div>
                       <div className="flex items-center space-x-2">
@@ -257,7 +257,7 @@ const Admin = () => {
                         />
                         <div>
                           <h3 className="font-semibold">{room.name}</h3>
-                          <p className="text-gray-600">₹{Number(room.price).toLocaleString()}/night</p>
+                          <p className="text-gray-600">Rs{Number(room.price).toLocaleString()}/night</p>
                           <p className="text-sm text-gray-500">Capacity: {room.capacity} guests</p>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {room.amenities?.slice(0, 3).map((amenity: string) => (

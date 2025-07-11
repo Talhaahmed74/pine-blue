@@ -6,6 +6,7 @@ from routes import rooms
 from routes import dashboard
 from routes import room_type
 from routes import login
+from routes import billing
 
 app = FastAPI(title="Hotel Management API", version="1.0.0")
 
@@ -29,7 +30,7 @@ app.include_router(rooms.router, tags=["rooms"])
 app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(room_type.router, tags=["room-types"])
 app.include_router(login.router, tags=["login"])
-
+app.include_router(billing.router, tags=["billing"])
 # Mount static files (commented out to prevent errors if Frontend directory doesn't exist)
 # Uncomment the line below if you have a Frontend directory in your backend folder
 # app.mount("/", StaticFiles(directory="Frontend", html=True), name="static")

@@ -13,7 +13,7 @@ interface PaymentButtonProps {
   disabled?: boolean;
 }
 
-const PaymentButton = ({ bookingId, amount, currency = "inr", disabled }: PaymentButtonProps) => {
+const PaymentButton = ({ bookingId, amount, currency = "pkr", disabled }: PaymentButtonProps) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
@@ -57,7 +57,7 @@ const PaymentButton = ({ bookingId, amount, currency = "inr", disabled }: Paymen
       ) : (
         <CreditCard className="mr-2 h-4 w-4" />
       )}
-      {loading ? 'Processing...' : `Pay ₹${amount.toLocaleString()}`}
+      {loading ? 'Processing...' : `Pay Rs${amount.toLocaleString()}`}
     </Button>
   );
 };

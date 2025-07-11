@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,7 +16,6 @@ import Header from "@/components/Header"
 import Footer from "@/components/Footer"
 import { CalendarIcon, Users, Mail, Phone, User, ArrowLeft } from "lucide-react"
 import { format } from "date-fns"
-import { sendBookingEmail } from "@/services/emailService"
 
 interface RoomType {
   id: number
@@ -43,7 +41,6 @@ const BookRoom = () => {
   const [allocatedRoom, setAllocatedRoom] = useState<AllocatedRoom | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-
   const [checkIn, setCheckIn] = useState<Date>()
   const [checkOut, setCheckOut] = useState<Date>()
   const [guestName, setGuestName] = useState("")
@@ -93,24 +90,19 @@ const BookRoom = () => {
   useEffect(() => {
     const fetchRoomType = async () => {
       if (!roomId) return
-
       try {
-        const response = await fetch(`http://localhost:8000/room-types/${roomId}`)
-
+        const response = await fetch(`http://localhost:8000/room_types/${roomId}`)
         if (!response.ok) {
           toast.error("Room type not found")
           navigate("/rooms")
           return
         }
-
         const data = await response.json()
-
         if (!data.is_available) {
           toast.error("This room type is currently unavailable")
           navigate("/rooms")
           return
         }
-
         setRoomType(data)
       } catch (error) {
         console.error("Error fetching room type:", error)
@@ -120,7 +112,6 @@ const BookRoom = () => {
         setLoading(false)
       }
     }
-
     fetchRoomType()
   }, [roomId, navigate])
 
@@ -137,21 +128,17 @@ const BookRoom = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     if (!checkIn || !checkOut) {
       toast.error("Please select check-in and check-out dates")
       return
     }
-
     if (checkOut <= checkIn) {
       toast.error("Check-out date must be after check-in date")
       return
     }
-
     if (!user || !roomType) return
 
     setSubmitting(true)
-
     try {
       // Create booking with the correct data structure
       const bookingData = {
@@ -164,11 +151,10 @@ const BookRoom = () => {
         check_out: format(checkOut, "yyyy-MM-dd"),
         total_amount: calculateTotal(),
         special_requests: specialRequests,
-        status: "confirmed",
+        status: "pending", // Changed from "confirmed" to "pending"
       }
 
       console.log("📤 Sending booking data:", bookingData)
-
       const response = await fetch("http://localhost:8000/bookings", {
         method: "POST",
         headers: {
@@ -178,11 +164,9 @@ const BookRoom = () => {
       })
 
       console.log("📡 Booking response status:", response.status)
-
       if (!response.ok) {
         const errorText = await response.text()
         console.error("❌ Booking error response:", errorText)
-
         let errorMessage = "Booking failed"
         try {
           const error = JSON.parse(errorText)
@@ -190,38 +174,16 @@ const BookRoom = () => {
         } catch (parseError) {
           errorMessage = `Server error (${response.status}): ${errorText}`
         }
-
         throw new Error(errorMessage)
       }
 
       const booking = await response.json()
       console.log("✅ Booking response:", booking)
 
-      // Set allocated room data from response
-      const allocatedRoomData = {
-        room_number: booking.room_number,
-        floor: Math.floor(Math.random() * 5) + 1,
-      }
-      setAllocatedRoom(allocatedRoomData)
+      toast.success("Booking created! Please complete billing details.")
 
-      // Send confirmation email
-      try {
-        await sendBookingEmail({
-          firstName: guestName.split(" ")[0],
-          email: guestEmail,
-          checkin_date: format(checkIn, "MMM dd, yyyy"),
-          checkout_date: format(checkOut, "MMM dd, yyyy"),
-          roomType: roomType.name,
-          roomNumber: allocatedRoomData.room_number,
-          totalAmount: calculateTotal(),
-          paymentStatus: "Confirmed",
-        })
-      } catch (emailError) {
-        console.error("Email sending failed:", emailError)
-        // Don't fail the booking if email fails
-      }
-
-      toast.success("Booking confirmed successfully!")
+      // Redirect to PaymentSuccess with booking_id instead of showing confirmation
+      navigate(`/payment-success?booking_id=${booking.booking_id}`)
     } catch (error: any) {
       console.error("Booking error:", error)
       toast.error(error.message || "Booking failed")
@@ -254,61 +216,9 @@ const BookRoom = () => {
     )
   }
 
-  if (allocatedRoom) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <div className="container mx-auto px-4 py-8">
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl text-green-600">Booking Confirmed!</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-                <h3 className="font-semibold text-green-800 mb-4">Your Room Details</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Room Number:</span>
-                    <div className="font-semibold">{allocatedRoom.room_number}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Floor:</span>
-                    <div className="font-semibold">{allocatedRoom.floor}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Room Type:</span>
-                    <div className="font-semibold">{roomType.name}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Total Amount:</span>
-                    <div className="font-semibold">₨{calculateTotal().toLocaleString()}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center space-y-4">
-                <p className="text-gray-600">
-                  A confirmation email has been sent to <strong>{guestEmail}</strong>
-                </p>
-                <div className="flex gap-4 justify-center">
-                  <Button onClick={() => navigate("/rooms")}>Book Another Room</Button>
-                  <Button variant="outline" onClick={() => navigate("/")}>
-                    Back to Home
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        <Footer />
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
-
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
         <Button variant="ghost" onClick={() => navigate("/rooms")} className="mb-6 gap-2">
@@ -375,7 +285,6 @@ const BookRoom = () => {
                       </PopoverContent>
                     </Popover>
                   </div>
-
                   <div>
                     <Label>Check-out Date</Label>
                     <Popover>
@@ -466,7 +375,6 @@ const BookRoom = () => {
           </Card>
         </div>
       </div>
-
       <Footer />
     </div>
   )

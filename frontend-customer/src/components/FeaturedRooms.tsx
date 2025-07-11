@@ -66,16 +66,6 @@ const FeaturedRooms = () => {
             total_capacity: 3,
           },
           {
-            id: 2,
-            name: "STANDARD DOUBLE",
-            base_price: 35000,
-            is_available: true,
-            amenities: ["Living Room", "Kitchenette", "Work Desk", "Hill View"],
-            max_adults: 2,
-            max_children: 2,
-            total_capacity: 4,
-          },
-          {
             id: 3,
             name: "Standard",
             base_price: 45000,

@@ -7,58 +7,57 @@ router = APIRouter()
 
 def determine_room_status(room_number: str, stored_status: str) -> str:
     """
-    Determine the dynamic status of a room based on current bookings.
-    Returns 'Occupied' if there's an active booking, otherwise returns the stored status.
+    Determine the dynamic status of a room based on current active bookings.
+    Returns 'Occupied' only if there's a booking active today (not cancelled).
     """
     today = date.today()
     
-    # Fetch active bookings for this room
     bookings_result = supabase.table("bookings") \
         .select("check_in, check_out") \
         .eq("room_number", room_number) \
+        .eq("is_cancelled", False) \
         .execute()
-    
+
     if not bookings_result.data:
         return stored_status
-    
-    # Check if any booking is currently active
+
     for booking in bookings_result.data:
         try:
             check_in = datetime.strptime(booking["check_in"], "%Y-%m-%d").date()
             check_out = datetime.strptime(booking["check_out"], "%Y-%m-%d").date()
-            
-            # If today is between check-in and check-out (inclusive of check-in, exclusive of check-out)
+
             if check_in <= today < check_out:
-                return "Occupied"
+                return "Occupied"  # ✅ Only if the room is actually booked *today*
         except (ValueError, KeyError):
             continue
-    
+
     return stored_status
 
 def check_room_has_active_bookings(room_number: str) -> bool:
     """
-    Check if a room has any active bookings (current date falls within booking period).
+    Returns True if there is any *current* non-cancelled booking for this room.
     """
     today = date.today()
     
     bookings_result = supabase.table("bookings") \
         .select("check_in, check_out") \
         .eq("room_number", room_number) \
+        .eq("is_cancelled", False) \
         .execute()
-    
+
     if not bookings_result.data:
         return False
-    
+
     for booking in bookings_result.data:
         try:
             check_in = datetime.strptime(booking["check_in"], "%Y-%m-%d").date()
             check_out = datetime.strptime(booking["check_out"], "%Y-%m-%d").date()
-            
+
             if check_in <= today < check_out:
                 return True
         except (ValueError, KeyError):
             continue
-    
+
     return False
 
 @router.get("/rooms")

@@ -68,7 +68,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
   // Fetch available room types - FIXED: Correct API endpoint
   const fetchRoomTypes = async () => {
     try {
-      const response = await fetch("http://localhost:8000/room-types/available")
+      const response = await fetch("http://localhost:8000/room-types/list")
       if (response.ok) {
         const data = await response.json()
         setRoomTypes(data)

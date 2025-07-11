@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,10 +11,25 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { CalendarIcon, Users, Hotel, CreditCard, FileText, AlertCircle, CheckCircle, X, Loader2 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  CalendarIcon,
+  Users,
+  Hotel,
+  CreditCard,
+  FileText,
+  AlertCircle,
+  CheckCircle,
+  X,
+  Loader2,
+  Search,
+  UserCheck,
+  Calculator,
+} from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { sendBookingEmail } from "@/components/emailService"
+import { billSettingsApi, type BillingSettings } from "@/apis/BillSetting_api"
 
 interface RoomType {
   id: number
@@ -32,6 +47,14 @@ interface AvailableRoom {
   price: number
   capacity: number
   amenities: string[]
+}
+
+interface Customer {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
 }
 
 // Toast Component
@@ -64,7 +87,7 @@ export const HotelBookingForm = () => {
   const [checkOutDate, setCheckOutDate] = useState<Date>()
   const [formData, setFormData] = useState({
     guests: 1,
-    roomTypeId: 0, // Changed to use room type ID
+    roomTypeId: 0,
     roomNumber: "",
     firstName: "",
     lastName: "",
@@ -73,12 +96,25 @@ export const HotelBookingForm = () => {
     status: "confirmed",
     source: "Direct",
     discount: 0,
-    vat: 16,
+    vat: 0,
     totalAmount: 0,
     paymentMethod: "Cash",
     paymentStatus: "Pending",
-    specialRequests: "", // Added special requests
+    specialRequests: "",
   })
+
+  // Billing settings state
+  const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null)
+  const [loadingBillingSettings, setLoadingBillingSettings] = useState(false)
+
+  // Customer search states
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customerSearch, setCustomerSearch] = useState("")
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const customerSearchRef = useRef<HTMLDivElement>(null)
 
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
@@ -87,10 +123,23 @@ export const HotelBookingForm = () => {
   const [isLoadingRoomTypes, setIsLoadingRoomTypes] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [dateError, setDateError] = useState("")
+  const [selectedRoom, setSelectedRoom] = useState<any | null>(null)
 
-  // Fetch room types on component mount
+  // Fetch billing settings and room types on component mount
   useEffect(() => {
+    fetchBillingSettings()
     fetchRoomTypes()
+  }, [])
+
+  // Handle click outside for customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerSearchRef.current && !customerSearchRef.current.contains(event.target as Node)) {
+        setShowCustomerDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
   // Validate dates whenever they change
@@ -116,10 +165,62 @@ export const HotelBookingForm = () => {
     }
   }, [formData.roomTypeId, checkInDate, checkOutDate, dateError, roomTypes])
 
+  // Customer search with debounce
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout)
+    }
+    if (customerSearch.length >= 2) {
+      const timeout = setTimeout(() => {
+        searchCustomers(customerSearch)
+      }, 300)
+      setSearchTimeout(timeout)
+    } else {
+      setCustomers([])
+      setShowCustomerDropdown(false)
+    }
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout)
+      }
+    }
+  }, [customerSearch])
+
+  // Update form data when billing settings are loaded
+  useEffect(() => {
+    if (billingSettings) {
+      setFormData((prev) => ({
+        ...prev,
+        discount: billingSettings.discount,
+        vat: billingSettings.vat,
+      }))
+    }
+  }, [billingSettings])
+
+  const fetchBillingSettings = async () => {
+    setLoadingBillingSettings(true)
+    try {
+      const response = await billSettingsApi.getBillingSettings()
+      if (response.success) {
+        setBillingSettings(response.data)
+        console.log("✅ Billing settings loaded:", response.data)
+      } else {
+        throw new Error("Failed to fetch billing settings")
+      }
+    } catch (err) {
+      console.error("Error fetching billing settings:", err)
+      showToast("Failed to load billing settings", "error")
+      // Set default values if API fails
+      setBillingSettings({ vat: 13, discount: 0 } as BillingSettings)
+    } finally {
+      setLoadingBillingSettings(false)
+    }
+  }
+
   const fetchRoomTypes = async () => {
     setIsLoadingRoomTypes(true)
     try {
-      const response = await fetch("http://localhost:8000/room-types/available")
+      const response = await fetch("http://localhost:8000/room-types-with-availability")
       if (!response.ok) throw new Error("Failed to fetch room types")
       const data = await response.json()
       setRoomTypes(data)
@@ -150,9 +251,53 @@ export const HotelBookingForm = () => {
     }
   }
 
+  const searchCustomers = async (search: string) => {
+    setIsSearchingCustomers(true)
+    try {
+      const response = await fetch(`http://localhost:8000/users?search=${encodeURIComponent(search)}`)
+      if (!response.ok) throw new Error("Failed to search customers")
+      const data = await response.json()
+      setCustomers(data.users || [])
+      setShowCustomerDropdown(true)
+    } catch (err) {
+      console.error("Error searching customers:", err)
+      setCustomers([])
+      showToast("Failed to search customers", "error")
+    } finally {
+      setIsSearchingCustomers(false)
+    }
+  }
+
+  const handleCustomerSelect = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setCustomerSearch("")
+    setShowCustomerDropdown(false)
+    // Auto-fill form with customer data
+    setFormData((prev) => ({
+      ...prev,
+      firstName: customer.first_name,
+      lastName: customer.last_name,
+      email: customer.email,
+      phone: customer.phone,
+    }))
+  }
+
+  const handleCustomerClear = () => {
+    setSelectedCustomer(null)
+    setCustomerSearch("")
+    setShowCustomerDropdown(false)
+    // Clear form fields
+    setFormData((prev) => ({
+      ...prev,
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+    }))
+  }
+
   const handleInputChange = (field: string, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-
     // When room type changes, reset room number and validate guests
     if (field === "roomTypeId") {
       setFormData((prev) => ({ ...prev, roomNumber: "" }))
@@ -163,7 +308,11 @@ export const HotelBookingForm = () => {
         setFormData((prev) => ({ ...prev, guests: selectedRoomType.total_capacity }))
       }
     }
-
+    if (field === "roomNumber") {
+      const matchedRoom = availableRooms.find((room) => room.room_number === value)
+      setSelectedRoom(matchedRoom || null)
+    }
+    
     // Validate guest count when changed
     if (field === "guests") {
       const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
@@ -200,6 +349,35 @@ export const HotelBookingForm = () => {
     return baseAmount - discountAmount + vatAmount
   }
 
+  // Get billing breakdown for display
+  const getBillingBreakdown = () => {
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
+    if (!selectedRoomType || !checkInDate || !checkOutDate) {
+      return {
+        nights: 0,
+        baseAmount: 0,
+        discountAmount: 0,
+        vatAmount: 0,
+        totalAmount: 0,
+      }
+    }
+
+    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
+    const baseAmount = selectedRoomType.base_price * nights
+    const discountAmount = (baseAmount * formData.discount) / 100
+    const discountedAmount = baseAmount - discountAmount
+    const vatAmount = (discountedAmount * formData.vat) / 100
+    const totalAmount = discountedAmount + vatAmount
+
+    return {
+      nights,
+      baseAmount,
+      discountAmount,
+      vatAmount,
+      totalAmount,
+    }
+  }
+
   // Update total when relevant fields change
   useEffect(() => {
     const total = calculateTotal()
@@ -212,7 +390,6 @@ export const HotelBookingForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     // Validate dates before submission
     if (!checkInDate || !checkOutDate) {
       showToast("Please select both check-in and check-out dates", "error")
@@ -239,7 +416,8 @@ export const HotelBookingForm = () => {
       // Use the new admin booking format
       const requestData = {
         room_type_id: formData.roomTypeId,
-        user_id: null, // Admin bookings have null user_id
+        room_number: selectedRoom?.room_number || formData.roomNumber,
+        user_id: selectedCustomer?.id || null, // Use selected customer ID or null for walk-ins
         guest_name: `${formData.firstName} ${formData.lastName}`,
         guest_email: formData.email,
         guest_phone: formData.phone,
@@ -267,8 +445,11 @@ export const HotelBookingForm = () => {
 
       // Send booking email after successful booking
       try {
+        const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
         await sendBookingEmail({
           ...formData,
+          roomTypeName: selectedRoomType?.name || "N/A",
+          selectedCustomer,
           checkin_date: checkInDate?.toISOString().split("T")[0],
           checkout_date: checkOutDate?.toISOString().split("T")[0],
         })
@@ -277,8 +458,14 @@ export const HotelBookingForm = () => {
         // Don't fail the booking if email fails
       }
 
-      // Show success toast
-      showToast(`Booking Successful! Booking ID: ${result.booking_id}`, "success")
+      // Show success toast with customer info
+      const customerInfo = selectedCustomer
+        ? ` for ${selectedCustomer.first_name} ${selectedCustomer.last_name}`
+        : " (Walk-in)"
+        showToast(
+          `Booking Successful ${customerInfo}! Booking ID: ${result.booking_id}, Assigned Room: ${result.room_number}`,
+          "success")
+        
 
       // Reset form
       setFormData({
@@ -291,8 +478,8 @@ export const HotelBookingForm = () => {
         phone: "",
         status: "confirmed",
         source: "Direct",
-        discount: 0,
-        vat: 16,
+        discount: billingSettings?.discount || 0,
+        vat: billingSettings?.vat || 0,
         totalAmount: 0,
         paymentMethod: "Cash",
         paymentStatus: "Pending",
@@ -301,6 +488,8 @@ export const HotelBookingForm = () => {
       setCheckInDate(undefined)
       setCheckOutDate(undefined)
       setAvailableRooms([])
+      setSelectedCustomer(null)
+      setCustomerSearch("")
     } catch (err: any) {
       console.error("Booking error:", err)
       showToast(`Booking Failed: ${err.message}`, "error")
@@ -319,6 +508,7 @@ export const HotelBookingForm = () => {
   }
 
   const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
+  const billingBreakdown = getBillingBreakdown()
 
   return (
     <>
@@ -333,6 +523,86 @@ export const HotelBookingForm = () => {
         </CardHeader>
         <CardContent className="p-4 md:p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Customer Search Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Customer Selection</h3>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Search className="h-4 w-4" />
+                  Search Existing Customer (Optional)
+                </Label>
+                <p className="text-sm text-gray-600">
+                  Search by email or phone to book for existing customers, or leave empty for walk-in bookings
+                </p>
+                {/* Selected Customer Display */}
+                {selectedCustomer && (
+                  <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-blue-600" />
+                      <span className="font-medium text-blue-800">
+                        {selectedCustomer.first_name} {selectedCustomer.last_name} - {selectedCustomer.email}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCustomerClear}
+                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Customer Search Input */}
+                {!selectedCustomer && (
+                  <div className="relative" ref={customerSearchRef}>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Type email or phone number..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                      {isSearchingCustomers && (
+                        <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                    {/* Customer Dropdown */}
+                    {showCustomerDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {customers.length > 0 ? (
+                          customers.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:bg-blue-50 focus:outline-none"
+                              onClick={() => handleCustomerSelect(customer)}
+                            >
+                              <div className="font-medium text-gray-900">
+                                {customer.first_name} {customer.last_name}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {customer.email} • {customer.phone}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-gray-500 text-center">
+                            {isSearchingCustomers ? "Searching..." : "No customers found"}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Date Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -571,18 +841,141 @@ export const HotelBookingForm = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="specialRequests">Special Requests</Label>
-                <Input
+                <Textarea
                   id="specialRequests"
                   value={formData.specialRequests}
                   onChange={(e) => handleInputChange("specialRequests", e.target.value)}
-                  placeholder="Any special requests or notes..."
+                  placeholder="Any special requests or notes (e.g., early check-in, room preferences, dietary requirements)..."
+                  rows={3}
+                  className="resize-none"
                 />
               </div>
             </div>
 
             <Separator />
 
-            {/* Billing Information */}
+            {/* Billing Details Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Calculator className="h-5 w-5" />
+                Billing Details
+              </h3>
+
+              {loadingBillingSettings ? (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-md">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading billing settings...</span>
+                </div>
+              ) : (
+                <>
+                  {/* Current Billing Settings (Read-only) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="discount" className="text-sm font-medium">
+                        Discount (%)
+                      </Label>
+                      <Input
+                        id="discount"
+                        type="number"
+                        value={formData.discount}
+                        disabled
+                        className="bg-gray-100 text-gray-700"
+                      />
+                      <p className="text-xs text-gray-500">Current system discount rate</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vat" className="text-sm font-medium">
+                        VAT (%)
+                      </Label>
+                      <Input
+                        id="vat"
+                        type="number"
+                        value={formData.vat}
+                        disabled
+                        className="bg-gray-100 text-gray-700"
+                      />
+                      <p className="text-xs text-gray-500">Current system VAT rate</p>
+                    </div>
+                  </div>
+
+                  {/* Billing Breakdown */}
+                  {selectedRoomType && checkInDate && checkOutDate && billingBreakdown.nights > 0 && (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Billing Breakdown
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700">
+                            Room Price ({billingBreakdown.nights} night{billingBreakdown.nights > 1 ? "s" : ""}):
+                          </span>
+                          <span className="font-medium">₨{billingBreakdown.baseAmount.toLocaleString()}</span>
+                        </div>
+                        {formData.discount > 0 && (
+                          <div className="flex justify-between items-center text-green-700">
+                            <span>Discount ({formData.discount}%):</span>
+                            <span className="font-medium">-₨{billingBreakdown.discountAmount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700">VAT ({formData.vat}%):</span>
+                          <span className="font-medium">₨{billingBreakdown.vatAmount.toLocaleString()}</span>
+                        </div>
+                        {/* Payment Method and Status */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="paymentMethod" className="text-sm font-medium">
+                              Payment Method
+                            </Label>
+                            <Select 
+                              value={formData.paymentMethod} 
+                              onValueChange={(value) => handleInputChange("paymentMethod", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select payment method" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Cash">Cash</SelectItem>
+                                <SelectItem value="Card">Card</SelectItem>
+                                
+                                
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="paymentStatus" className="text-sm font-medium">
+                              Payment Status
+                            </Label>
+                            <Select 
+                              value={formData.paymentStatus} 
+                              onValueChange={(value) => handleInputChange("paymentStatus", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select payment status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Pending">Pending</SelectItem>
+                                <SelectItem value="Paid">Paid</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <Separator className="my-2" />
+                        <div className="flex justify-between items-center text-lg font-bold text-blue-900">
+                          <span>Total Amount:</span>
+                          <span>₨{billingBreakdown.totalAmount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Booking Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Booking Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -595,7 +988,6 @@ export const HotelBookingForm = () => {
                     <SelectContent>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -606,7 +998,7 @@ export const HotelBookingForm = () => {
                     type="number"
                     value={formData.totalAmount.toFixed(2)}
                     onChange={(e) => handleInputChange("totalAmount", Number.parseFloat(e.target.value) || 0)}
-                    className="bg-gray-50"
+                    className="bg-gray-50 font-semibold"
                   />
                 </div>
               </div>

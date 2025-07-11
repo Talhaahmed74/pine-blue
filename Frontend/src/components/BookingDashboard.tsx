@@ -28,9 +28,8 @@ export const BookingDashboard = () => {
     setDeletingBookingId(bookingId);
     
     try {
-      const response = await axios.delete(`http://localhost:8000/delete-booking/${bookingId}`);
+      const response = await axios.put(`http://localhost:8000/bookings/${bookingId}/cancel`);
       // const response = await axios.delete(`${API_BASE_URL}/delete-booking/${bookingId}`);
-      
       // Remove the deleted booking from the list
       setRecentBookings((prev) => prev.filter((b) => b.id !== bookingId));
   

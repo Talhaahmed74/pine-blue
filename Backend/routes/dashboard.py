@@ -5,6 +5,13 @@ from datetime import datetime, timezone, date
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
+from fastapi import APIRouter, HTTPException
+from supabase_client import supabase
+from datetime import datetime, timezone, date
+
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
 @router.get("/summary")
 def get_dashboard_summary():
     try:
@@ -66,6 +73,36 @@ def get_all_dashboard_bookings():
         # Sort by check-in date descending
         bookings = sorted(bookings, key=lambda x: x["checkIn"], reverse=True)
 
+        return {"bookings": bookings}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Booking fetch failed: {str(e)}")
+
+
+@router.get("/bookings")
+def get_all_dashboard_bookings():
+    try:
+        result = supabase.rpc("get_dashboard_bookings").execute()
+        if not result.data:
+            return {"bookings": []}
+
+        bookings = []
+        for b in result.data:
+            if b.get("is_cancelled"):  # ❌ Skip cancelled
+                continue
+
+            bookings.append({
+                "id": b["booking_id"],
+                "guest": f"{b.get('first_name', '')} {b.get('last_name', '')}".strip(),
+                "room": f"{b['room_type']} Room {b['room_number']}",
+                "checkIn": b["check_in"],
+                "checkOut": b["check_out"],
+                "status": b["status"],
+                "source": b["source"],
+                "amount": f"₨{int(b['total_amount']):,}" if b.get("total_amount") else "₨0"
+            })
+
+        bookings = sorted(bookings, key=lambda x: x["checkIn"], reverse=True)
         return {"bookings": bookings}
 
     except Exception as e:
