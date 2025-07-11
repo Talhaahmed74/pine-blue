@@ -12,6 +12,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => {
+  console.log("🌍 VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
