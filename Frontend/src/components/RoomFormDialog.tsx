@@ -54,7 +54,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
   const [selectedRoomType, setSelectedRoomType] = useState<RoomType | null>(null)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
   const form = useForm<RoomFormData>({
     resolver: zodResolver(roomFormSchema),
     defaultValues: {

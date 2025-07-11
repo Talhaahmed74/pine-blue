@@ -124,7 +124,7 @@ export const HotelBookingForm = () => {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [dateError, setDateError] = useState("")
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
   // Fetch billing settings and room types on component mount
   useEffect(() => {
     fetchBillingSettings()
