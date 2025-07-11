@@ -25,6 +25,7 @@ export const RoomManagement = () => {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [editingRoom, setEditingRoom] = useState<Room | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
@@ -57,7 +58,7 @@ export const RoomManagement = () => {
   useEffect(() => {
     fetchRooms()
   }, [])
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  
   const handleDeleteConfirm = (roomNumber: string) => {
     setDeleteConfirm({
       isOpen: true,
