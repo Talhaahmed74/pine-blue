@@ -29,9 +29,9 @@ const Index = ({ onLogout }: IndexProps) => {
               alt="Blue Pines Resort Logo" 
               className="h-12 w-auto"
             />
-            Blue Pines Online
+            Blue Pine Admin
           </h1>
-          <p className="text-blue-600 text-lg">Complete booking management system for Blue Pines Resort</p>
+          <p className="text-blue-600 text-lg">Complete booking management system for Blue Pine Resort</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

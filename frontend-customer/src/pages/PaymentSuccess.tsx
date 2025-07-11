@@ -79,7 +79,7 @@ const PaymentSuccess = () => {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [billingConfirmed, setBillingConfirmed] = useState(false)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  // const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [billingForm, setBillingForm] = useState<BillingFormData>({
     room_price: 0,
     discount: 0,
@@ -102,7 +102,8 @@ const PaymentSuccess = () => {
         console.log("🔍 Fetching booking details for ID:", bookingId)
 
         // Fetch booking details
-        const bookingResponse = await fetch(`${API_BASE_URL}/bookings/${bookingId}`)
+        const bookingResponse = await fetch(`http://localhost:8000/bookings/${bookingId}`);
+        // const bookingResponse = await fetch(`${API_BASE_URL}/bookings/${bookingId}`)
         if (!bookingResponse.ok) throw new Error("Booking not found")
         const bookingData = await bookingResponse.json()
 
@@ -138,7 +139,8 @@ const PaymentSuccess = () => {
         // Method 1: Try to get from room type API
         try {
           // First, try to find room type by name to get the ID
-          const roomTypesResponse = await fetch(`${API_BASE_URL}/room-types-with-availability`)
+          const roomTypesResponse = await fetch(`http://localhost:8000/room-types-with-availability`)
+          // const roomTypesResponse = await fetch(`${API_BASE_URL}/room-types-with-availability`)
           const roomTypesData = await roomTypesResponse.json()
           const matchingRoomType = roomTypesData.find((rt: any) => rt.name === bookingData.room_type)
 
@@ -212,7 +214,8 @@ const PaymentSuccess = () => {
     const handleBeforeUnload = async () => {
       if (!billingConfirmed && booking?.booking_id) {
         try {
-          await fetch(`${API_BASE_URL}/bookings/${booking.booking_id}/rollback`, {
+          await fetch(`http://localhost:8000/bookings/${booking.booking_id}/rollback`, {
+          // await fetch(`${API_BASE_URL}/bookings/${booking.booking_id}/rollback`, {
             method: "DELETE",
           })
           console.log("🔁 Booking rolled back on unload")

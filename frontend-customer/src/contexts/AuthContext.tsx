@@ -25,21 +25,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   useEffect(() => {
-    // Check if user is logged in from localStorage
     const savedUser = localStorage.getItem("hotel_user")
+  
     if (savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser)
-        setUser(parsedUser)
-        console.log("✅ Restored user from localStorage:", parsedUser)
+  
+        // 🔐 Check with backend if user still exists
+        fetch(`${API_BASE_URL}/user/${parsedUser.id}`)
+          .then((res) => {
+            if (!res.ok) throw new Error("User not valid anymore")
+            return res.json()
+          })
+          .then((data) => {
+            setUser(data)
+            console.log("✅ Verified and restored user from backend:", data)
+          })
+          .catch((err) => {
+            console.warn("❌ Saved user not valid anymore:", err)
+            localStorage.removeItem("hotel_user")
+            setUser(null)
+          })
+          .finally(() => setLoading(false))
       } catch (error) {
         console.error("❌ Error parsing saved user:", error)
         localStorage.removeItem("hotel_user")
+        setUser(null)
+        setLoading(false)
       }
+    } else {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [])
-
+  }, [])  
+  
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log("🔐 Starting login process...")

@@ -123,33 +123,35 @@ def add_room(room_data: dict):
         room_type_result = supabase.table("room_types").select("*").eq("name", room_data["room_type"]).execute()
         if not room_type_result.data:
             raise HTTPException(status_code=400, detail="Invalid room type")
-        
+                
         room_type = room_type_result.data[0]
         if not room_type["is_available"]:
             raise HTTPException(status_code=400, detail="This room type is not available")
-        
+                
         # Check if room number already exists
         existing_room = supabase.table("rooms").select("room_number").eq("room_number", room_data["room_number"]).execute()
         if existing_room.data:
             raise HTTPException(status_code=400, detail="Room number already exists")
-        
-        # Create room with room_type_id foreign key
+                
+        # Create room with room_type_id foreign key AND room_type name
         room_insert_data = {
             "room_number": room_data["room_number"],
             "room_type_id": room_type["id"],
+            "room_type": room_type["name"],  # ADD THIS LINE - this is the fix!
             "status": room_data.get("status", "Available"),
             "floor": room_data["floor"]
         }
-        
+                
         result = supabase.table("rooms").insert(room_insert_data).execute()
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to create room")
-        
+                
         return {"message": "Room added successfully"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.put("/rooms/{room_number}")
 def update_room(room_number: str, room_data: dict):

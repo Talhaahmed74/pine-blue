@@ -62,6 +62,7 @@ export const RoomSettingsForm = ({ isOpen, onClose }: RoomSettingsFormProps) => 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingRoomType, setEditingRoomType] = useState<RoomType | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
     roomTypeId: number
@@ -87,7 +88,7 @@ export const RoomSettingsForm = ({ isOpen, onClose }: RoomSettingsFormProps) => 
   const fetchRoomTypes = async () => {
     try {
       setLoading(true)
-      const response = await fetch("http://localhost:8000/room-types")
+      const response = await fetch(`${API_BASE_URL}/room-types`)
       if (response.ok) {
         const data = await response.json()
         setRoomTypes(data)
@@ -159,7 +160,7 @@ export const RoomSettingsForm = ({ isOpen, onClose }: RoomSettingsFormProps) => 
 
   const handleDelete = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/room-types/${deleteConfirm.roomTypeId}`, {
+      const response = await fetch(`${API_BASE_URL}/room-types/${deleteConfirm.roomTypeId}`, {
         method: "DELETE",
       })
 
@@ -193,8 +194,8 @@ export const RoomSettingsForm = ({ isOpen, onClose }: RoomSettingsFormProps) => 
     setIsSubmitting(true)
     try {
       const url = editingRoomType
-        ? `http://localhost:8000/room-types/${editingRoomType.id}`
-        : "http://localhost:8000/room-types"
+        ? `${API_BASE_URL}/room-types/${editingRoomType.id}`
+        : "${API_BASE_URL}/room-types"
 
       const method = editingRoomType ? "PUT" : "POST"
 
@@ -231,7 +232,7 @@ export const RoomSettingsForm = ({ isOpen, onClose }: RoomSettingsFormProps) => 
 
   const seedRoomTypes = async () => {
     try {
-      const response = await fetch("http://localhost:8000/room-types/seed", {
+      const response = await fetch(`${API_BASE_URL}/room-types/seed`, {
         method: "POST",
       })
 

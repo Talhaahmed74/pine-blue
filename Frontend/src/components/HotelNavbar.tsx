@@ -105,7 +105,7 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
                 alt="Blue Pines Resort Logo"
                 className="h-8 sm:h-10 w-auto flex-shrink-0"
               />
-              <span className="text-lg sm:text-xl font-bold text-blue-800 truncate">Blue Pines Online</span>
+              <span className="text-lg sm:text-xl font-bold text-blue-800 truncate">Admin</span>
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 hidden xs:inline-flex">Premium</Badge>
             </div>
           </div>

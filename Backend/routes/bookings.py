@@ -15,24 +15,40 @@ def generate_booking_id(last_id: int) -> str:
     return f"BK{str(last_id + 1).zfill(3)}"
 
 def check_room_availability(room_number: str, check_in: date, check_out: date) -> bool:
-    """Check if a room is available for the given date range"""
+    """
+    Improved room availability check with better logic
+    Returns True if room is available for the entire date range
+    """
     try:
-        overlapping_result = supabase.table("bookings") \
-            .select("room_number", "check_in", "check_out", "status") \
-            .eq("room_number", room_number) \
-            .neq("status", "cancelled") \
+        # Only check for confirmed/active bookings that would block the room
+        conflicting_bookings = (
+            supabase.table("bookings")
+            .select("id, check_in, check_out, status")
+            .eq("room_number", room_number)
+            .neq("status","Maintenance")
             .execute()
-
-        for booking in overlapping_result.data:
-            b_check_in = datetime.fromisoformat(booking["check_in"]).date()
-            b_check_out = datetime.fromisoformat(booking["check_out"]).date()
+        )
+        
+        for booking in conflicting_bookings.data:
+            booking_check_in = booking["check_in"]
+            booking_check_out = booking["check_out"]
             
-            if not (b_check_out <= check_in or b_check_in >= check_out):
-                return False
-        return True
+            # Convert string dates to date objects if needed
+            if isinstance(booking_check_in, str):
+                booking_check_in = date.fromisoformat(booking_check_in)
+            if isinstance(booking_check_out, str):
+                booking_check_out = date.fromisoformat(booking_check_out)
+            
+            # Check for date overlap
+            # Overlap occurs if: check_in < booking_check_out AND check_out > booking_check_in
+            if check_in < booking_check_out and check_out > booking_check_in:
+                return False  # Room is not available due to this booking
+        
+        return True  # No conflicts found, room is available
+        
     except Exception as e:
-        logging.error(f"Error checking room availability: {e}")
-        return False
+        logging.error(f"Error checking room availability for {room_number}: {e}")
+        return False  # Assume not available on error
 
 def check_guest_capacity_by_name(room_type_name: str, guests: int) -> bool:
     """Check if the number of guests doesn't exceed room capacity using room type name"""
@@ -315,6 +331,7 @@ def get_available_rooms(
 # NEW ROUTE: Frontend-compatible booking endpoint (for user bookings)
 @router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking_request: FrontendBookingRequest):
+    """Create a new booking - matches frontend expectation with validation"""
     logging.info("📥 Received validated booking request from frontend")
 
     inserted_booking_str_id = None  # 👈 For rollback
@@ -386,54 +403,29 @@ async def create_booking(booking_request: FrontendBookingRequest):
         }
 
         supabase.table("bookings").insert(booking_insert_data).execute()
-        inserted_booking_str_id = booking_id  # ✅ For rollback
+        inserted_booking_str_id = booking_id  # ✅ For rollback tracking
         logging.info("✅ Booking saved")
-
-        # 🎯 Now create billing — rollback booking if billing fails
-        settings_result = supabase.table("billing_settings").select("*").order("id", desc=True).limit(1).execute()
-        vat = float(settings_result.data[0]["vat"]) if settings_result.data else 13.0
-        discount = float(settings_result.data[0]["discount"]) if settings_result.data else 0.0
-
-        discount_amount = calculated_total * (discount / 100)
-        discounted_total = calculated_total - discount_amount
-        vat_amount = discounted_total * (vat / 100)
-        final_total = discounted_total + vat_amount
-
-        billing_insert = {
-            "booking_id": booking_id,
-            "room_price": room_type["base_price"],
-            "discount": discount,
-            "vat": vat,
-            "total_amount": final_total,
-            "payment_method": "OnArrival",
-            "payment_status": "Pending",
-            "is_cancelled": False,
-            "created_at": datetime.utcnow().isoformat()
-        }
-
-        supabase.table("billing").insert(billing_insert).execute()
-        logging.info("✅ Billing saved")
 
         return BookingResponse(
             success=True,
             booking_id=booking_id,
             room_number=available_room,
-            total_amount=final_total,
+            total_amount=total_amount,
             message="Booking created successfully"
         )
 
     except HTTPException:
+        # Let FastAPI handle HTTP errors normally
         raise
 
     except Exception as e:
-        logging.error(f"❗ Error creating booking or billing: {e}")
+        logging.error(f"❗ Error creating booking: {e}")
         import traceback
         traceback.print_exc()
 
-        # 🧹 Rollback booking if billing failed
         if inserted_booking_str_id:
             supabase.table("bookings").delete().eq("booking_id", inserted_booking_str_id).execute()
-            logging.info("🧹 Rolled back booking (frontend failure)")
+            logging.info("🧹 Rolled back booking (frontend)")
 
         raise HTTPException(status_code=500, detail=f"Booking failed: {str(e)}")
 
