@@ -20,7 +20,6 @@ const queryClient = new QueryClient()
 
 const App = () => {
   // ✅ Console log here — inside the function body, before the return
-  console.log("🌐 [Customer] VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL);
 
   return (
     <QueryClientProvider client={queryClient}>
