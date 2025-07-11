@@ -47,7 +47,7 @@ const BookRoom = () => {
   const [guestEmail, setGuestEmail] = useState("")
   const [guestPhone, setGuestPhone] = useState("")
   const [specialRequests, setSpecialRequests] = useState("")
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   // Image mapping for room types
   const getImageForRoomType = (roomName: string) => {
     const normalizedName = roomName.toLowerCase()
@@ -91,7 +91,7 @@ const BookRoom = () => {
     const fetchRoomType = async () => {
       if (!roomId) return
       try {
-        const response = await fetch(`http://localhost:8000/room_types/${roomId}`)
+        const response = await fetch(`${API_BASE_URL}/room_types/${roomId}`)
         if (!response.ok) {
           toast.error("Room type not found")
           navigate("/rooms")
@@ -155,7 +155,7 @@ const BookRoom = () => {
       }
 
       console.log("📤 Sending booking data:", bookingData)
-      const response = await fetch("http://localhost:8000/bookings", {
+      const response = await fetch(`${API_BASE_URL}/bookings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -783,46 +783,46 @@ def search_users(search: str = Query(..., min_length=2)):
 
 @router.post("/billing")
 async def create_billing_record(billing_data: dict):
-    """Create a new billing record with current settings and confirm booking"""
+    """Create a new billing record and confirm the booking if successful"""
     try:
         booking_id = billing_data.get("booking_id")
         room_price = billing_data.get("room_price")
         payment_method = billing_data.get("payment_method", "pending")
         payment_status = billing_data.get("payment_status", "pending")
-        
-        if not booking_id or not room_price:
+
+        if not booking_id or room_price is None:
             raise HTTPException(status_code=400, detail="booking_id and room_price are required")
-        
-        # Get current billing settings
+
+        # Safely convert room_price to float
+        try:
+            room_price = float(room_price)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="room_price must be a number")
+
+        # Fetch latest billing settings
         settings_result = supabase.table("billing_settings").select("*").order("id", desc=True).limit(1).execute()
-        
-        if not settings_result.data:
-            # Use default values
-            vat_rate = 13.0
-            discount_rate = 0.0
-        else:
-            settings = settings_result.data[0]
-            vat_rate = float(settings["vat"])
-            discount_rate = float(settings["discount"])
-        
-        # Get booking details to calculate nights
+
+        vat_rate = float(settings_result.data[0]["vat"]) if settings_result.data else 13.0
+        discount_rate = float(settings_result.data[0]["discount"]) if settings_result.data else 0.0
+
+        # Get booking info
         booking_result = supabase.table("bookings").select("*").eq("booking_id", booking_id).execute()
         if not booking_result.data:
             raise HTTPException(status_code=404, detail="Booking not found")
-        
+
         booking = booking_result.data[0]
         check_in = datetime.fromisoformat(booking["check_in"]).date()
         check_out = datetime.fromisoformat(booking["check_out"]).date()
-        nights = (check_out - check_in).days or 1
-        
+        nights = max(1, (check_out - check_in).days)
+
         # Calculate amounts
         base_amount = room_price * nights
         discount_amount = base_amount * (discount_rate / 100)
         discounted_amount = base_amount - discount_amount
         vat_amount = discounted_amount * (vat_rate / 100)
         total_amount = discounted_amount + vat_amount
-        
-        # Insert billing record
+
+        # Insert billing
         billing_insert_data = {
             "booking_id": booking_id,
             "room_price": room_price,
@@ -834,32 +834,33 @@ async def create_billing_record(billing_data: dict):
             "is_cancelled": False,
             "created_at": datetime.utcnow().isoformat()
         }
-        
-        result = supabase.table("billing").insert(billing_insert_data).execute()
-        
-        # Confirm the booking and mark room as occupied
+
+        billing_result = supabase.table("billing").insert(billing_insert_data).execute()
+
+        # Mark booking as confirmed
         supabase.table("bookings").update({
             "status": "confirmed",
             "updated_at": datetime.utcnow().isoformat()
         }).eq("booking_id", booking_id).execute()
-        
+
         # Mark room as occupied
         supabase.table("rooms").update({"status": "Occupied"}).eq("room_number", booking["room_number"]).execute()
-        
-        logging.info(f"✅ Billing record created for booking {booking_id} and booking confirmed")
-        
+
+        logging.info(f"✅ Billing created and booking {booking_id} confirmed")
+
         return {
             "success": True,
-            "billing_id": result.data[0]["id"],
+            "billing_id": billing_result.data[0]["id"],
             "total_amount": total_amount,
-            "message": "Billing record created and booking confirmed successfully"
+            "message": "Billing created and booking confirmed"
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error creating billing record: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create billing record: {str(e)}")
+        logging.error(f"❌ Billing creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create billing: {str(e)}")
+
 
 @router.get("/debug/rooms-and-types")
 def debug_rooms_and_types():

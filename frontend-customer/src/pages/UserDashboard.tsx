@@ -67,7 +67,7 @@ const UserDashboard = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   useEffect(() => {
     const fetchUserDashboard = async () => {
       if (!user?.email) {
@@ -77,7 +77,7 @@ const UserDashboard = () => {
 
       try {
         // Use email-based endpoint since we might not have user_id
-        const response = await fetch(`http://localhost:8000/user/email/${encodeURIComponent(user.email)}/dashboard`)
+        const response = await fetch(`${API_BASE_URL}/user/email/${encodeURIComponent(user.email)}/dashboard`)
 
         if (!response.ok) {
           throw new Error(`Failed to fetch dashboard data: ${response.statusText}`)

@@ -33,11 +33,11 @@ export const RoomManagement = () => {
     isOpen: false,
     roomNumber: "",
   })
-
+  
   const fetchRooms = async () => {
     try {
       setLoading(true)
-      const response = await fetch("http://localhost:8000/rooms")
+      const response = await fetch(`${API_BASE_URL}/rooms`)
       if (!response.ok) {
         throw new Error("Failed to fetch rooms")
       }
@@ -57,7 +57,7 @@ export const RoomManagement = () => {
   useEffect(() => {
     fetchRooms()
   }, [])
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const handleDeleteConfirm = (roomNumber: string) => {
     setDeleteConfirm({
       isOpen: true,
@@ -67,7 +67,7 @@ export const RoomManagement = () => {
 
   const handleDelete = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/rooms/${deleteConfirm.roomNumber}`, {
+      const response = await fetch(`${API_BASE_URL}/rooms/${deleteConfirm.roomNumber}`, {
         method: "DELETE",
       })
       if (!response.ok) {

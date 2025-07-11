@@ -18,7 +18,7 @@ interface RoomType {
 const FeaturedRooms = () => {
   const [rooms, setRooms] = useState<RoomType[]>([])
   const [loading, setLoading] = useState(true)
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   // Image mapping for different room types
   const getImageForRoomType = (roomName: string) => {
     const normalizedName = roomName.toLowerCase()
@@ -44,7 +44,7 @@ const FeaturedRooms = () => {
   useEffect(() => {
     const fetchRoomTypes = async () => {
       try {
-        const response = await fetch("http://localhost:8000/room-types")
+        const response = await fetch(`${API_BASE_URL}/room-types`)
         if (!response.ok) {
           throw new Error("Failed to fetch room types")
         }
@@ -59,8 +59,8 @@ const FeaturedRooms = () => {
             id: 1,
             name: "PREMIUM ROOM",
             base_price: 25000,
-            is_available: true,
-            amenities: ["Mountain View", "King Bed", "Mini Bar", "Balcony", "WiFi"],
+            is_available: false,
+            amenities: ["Mountain View", "AC", "TV", "Balcony", "WiFi"],
             max_adults: 2,
             max_children: 1,
             total_capacity: 3,
@@ -68,7 +68,7 @@ const FeaturedRooms = () => {
           {
             id: 3,
             name: "Standard",
-            base_price: 45000,
+            base_price: 8000,
             is_available: false,
             amenities: ["Modern Design", "Work Space", "Smart TV", "Fireplace"],
             max_adults: 2,

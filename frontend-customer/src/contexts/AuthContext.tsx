@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   useEffect(() => {
     // Check if user is logged in from localStorage
     const savedUser = localStorage.getItem("hotel_user")
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Test if FastAPI server is running
       try {
-        const healthResponse = await fetch("http://localhost:8000/health", {
+        const healthResponse = await fetch(`${API_BASE_URL}/health`, {
           method: "GET",
         })
         console.log("🏥 Health check status:", healthResponse.status)
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false
       }
 
-      const response = await fetch("http://localhost:8000/login", {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

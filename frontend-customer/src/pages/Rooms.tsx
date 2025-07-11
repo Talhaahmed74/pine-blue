@@ -28,6 +28,7 @@ const Rooms = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [sortBy, setSortBy] = useState("price-low")
   const [filterBy, setFilterBy] = useState("all")
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Image mapping for different room types
   const getImageForRoomType = (roomName: string) => {
@@ -56,7 +57,7 @@ const Rooms = () => {
         setIsLoading(true)
 
         // Use the new endpoint that checks actual room availability
-        const response = await fetch("http://localhost:8000/room-types-with-availability")
+        const response = await fetch(`${API_BASE_URL}/room-types-with-availability`)
 
         if (!response.ok) {
           throw new Error("Failed to fetch rooms")
@@ -80,7 +81,7 @@ const Rooms = () => {
         setRooms([
           {
             id: 1,
-            name: "PREMIUM ROOM",
+            name: "Standard ROOM",
             base_price: 25000,
             is_available: true,
             amenities: ["Mountain View", "King Bed", "Mini Bar", "Balcony", "WiFi"],
@@ -93,7 +94,7 @@ const Rooms = () => {
           },
           {
             id: 2,
-            name: "STANDARD DOUBLE",
+            name: "Executive Suite Room",
             base_price: 35000,
             is_available: false,
             amenities: ["Living Room", "Kitchenette", "Work Desk", "Hill View"],
@@ -104,32 +105,7 @@ const Rooms = () => {
             available_rooms_count: 0,
             total_rooms_count: 2,
           },
-          {
-            id: 3,
-            name: "DELUXE SUITE",
-            base_price: 45000,
-            is_available: true,
-            amenities: ["Modern Design", "Work Space", "Smart TV", "Fireplace"],
-            max_adults: 2,
-            max_children: 0,
-            created_at: new Date().toISOString(),
-            total_capacity: 2,
-            available_rooms_count: 1,
-            total_rooms_count: 2,
-          },
-          {
-            id: 4,
-            name: "LUXURY SUITE",
-            base_price: 65000,
-            is_available: true,
-            amenities: ["Ocean View", "Jacuzzi", "Private Balcony", "Butler Service"],
-            max_adults: 4,
-            max_children: 2,
-            created_at: new Date().toISOString(),
-            total_capacity: 6,
-            available_rooms_count: 1,
-            total_rooms_count: 1,
-          },
+
         ])
       } finally {
         setIsLoading(false)

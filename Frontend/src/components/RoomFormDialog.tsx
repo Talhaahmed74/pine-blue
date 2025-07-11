@@ -54,7 +54,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
   const [selectedRoomType, setSelectedRoomType] = useState<RoomType | null>(null)
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const form = useForm<RoomFormData>({
     resolver: zodResolver(roomFormSchema),
     defaultValues: {
@@ -68,7 +68,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
   // Fetch available room types - FIXED: Correct API endpoint
   const fetchRoomTypes = async () => {
     try {
-      const response = await fetch("http://localhost:8000/room-types/list")
+      const response = await fetch(`${API_BASE_URL}/room-types/list`)
       if (response.ok) {
         const data = await response.json()
         setRoomTypes(data)
@@ -128,7 +128,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
 
   const addRoom = async (data: RoomFormData) => {
     try {
-      const response = await fetch("http://localhost:8000/rooms", {
+      const response = await fetch(`${API_BASE_URL}/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +165,7 @@ export const RoomFormDialog = ({ isOpen, onClose, editingRoom, onRoomAdded, onRo
     if (!editingRoom) return
 
     try {
-      const response = await fetch(`http://localhost:8000/rooms/${editingRoom.room_number}`, {
+      const response = await fetch(`${API_BASE_URL}/rooms/${editingRoom.room_number}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

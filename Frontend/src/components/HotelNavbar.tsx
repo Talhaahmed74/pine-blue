@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Bell, Settings, User, LogOut, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { billSettingsApi } from "../../../apis/BillSetting_api"
+import { billSettingsApi } from "@/apis/BillSetting_api"
 import { toast } from "sonner"
 
 interface HotelNavbarProps {
@@ -23,7 +23,7 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-
+  
   // Load current billing settings when dialog opens
   useEffect(() => {
     if (isSettingsOpen) {

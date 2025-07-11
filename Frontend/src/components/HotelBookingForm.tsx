@@ -124,7 +124,7 @@ export const HotelBookingForm = () => {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [dateError, setDateError] = useState("")
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null)
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   // Fetch billing settings and room types on component mount
   useEffect(() => {
     fetchBillingSettings()
@@ -220,7 +220,7 @@ export const HotelBookingForm = () => {
   const fetchRoomTypes = async () => {
     setIsLoadingRoomTypes(true)
     try {
-      const response = await fetch("http://localhost:8000/room-types-with-availability")
+      const response = await fetch(`${API_BASE_URL}/room-types-with-availability`)
       if (!response.ok) throw new Error("Failed to fetch room types")
       const data = await response.json()
       setRoomTypes(data)
@@ -237,7 +237,7 @@ export const HotelBookingForm = () => {
     setIsLoadingRooms(true)
     try {
       const response = await fetch(
-        `http://localhost:8000/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
+        `${API_BASE_URL}/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
       )
       if (!response.ok) throw new Error("Failed to fetch available rooms")
       const data = await response.json()
@@ -254,7 +254,7 @@ export const HotelBookingForm = () => {
   const searchCustomers = async (search: string) => {
     setIsSearchingCustomers(true)
     try {
-      const response = await fetch(`http://localhost:8000/users?search=${encodeURIComponent(search)}`)
+      const response = await fetch(`${API_BASE_URL}/users?search=${encodeURIComponent(search)}`)
       if (!response.ok) throw new Error("Failed to search customers")
       const data = await response.json()
       setCustomers(data.users || [])
@@ -428,7 +428,7 @@ export const HotelBookingForm = () => {
         status: formData.status,
       }
 
-      const response = await fetch("http://localhost:8000/admin/bookings", {
+      const response = await fetch(`${API_BASE_URL}/admin/bookings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
