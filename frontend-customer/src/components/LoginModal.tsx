@@ -23,7 +23,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const { login } = useAuth()
-
+  
   // Pre-fill demo credentials
   const fillDemoCredentials = () => {
     setEmail("customer@hotel.com")

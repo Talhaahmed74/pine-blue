@@ -106,7 +106,7 @@ const AddRoomDialog = ({ onRoomAdded }: AddRoomDialogProps) => {
               />
             </div>
             <div>
-              <Label htmlFor="price">Price per Night (₹)</Label>
+              <Label htmlFor="price">Price per Night (Rs)</Label>
               <Input
                 id="price"
                 type="number"

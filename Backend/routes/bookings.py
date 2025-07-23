@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from models.booking import Booking, BookingUpdate, FrontendBookingRequest, BookingResponse, BookingWithUser
+from models.booking import Booking, BookingUpdate,FrontendBookingRequest, BookingResponse, BookingWithUser
 from models.booking_request import BookingRequest
 from models.billing import Billing, BillingUpdate
 from supabase_client import supabase

@@ -58,6 +58,7 @@ export const BookingUpdateForm: React.FC<BookingUpdateFormProps> = ({
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [formData, setFormData] = useState<BookingData>({
     id: booking.id || "",
     first_name: booking.first_name || "",
@@ -149,7 +150,7 @@ export const BookingUpdateForm: React.FC<BookingUpdateFormProps> = ({
 
       // Make API call to update booking
       const response = await axios.put(
-        `http://localhost:8000/update-booking/${formData.id}`,
+        `${API_BASE_URL}/update-booking/${formData.id}`,
         updateData
       );
 

@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Hotel, Plus, Edit, Trash2, Wifi, Tv, Car, Coffee, RefreshCw, Settings } from "lucide-react"
+import { Hotel, Plus, Edit, Trash2, Wifi, Tv, Car, Coffee, RefreshCw, Settings, Search } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { RoomFormDialog, type Room } from "./RoomFormDialog"
+import { Input } from "@/components/ui/input"
 import { RoomSettingsForm } from "./RoomSettingsForm"
 import {
   AlertDialog,
@@ -20,13 +21,40 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+// Type for room statistics
+interface RoomStats {
+  total: number
+  available: number
+  occupied: number
+  maintenance: number
+}
+
 export const RoomManagement = () => {
+  const limit = 8
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "")
   const [editingRoom, setEditingRoom] = useState<Room | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMoreRooms, setHasMoreRooms] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+  const [isSearchMode, setIsSearchMode] = useState(false)
+  const [searchResults, setSearchResults] = useState<Room[]>([])
+  
+  // NEW: Separate state for room statistics
+  const [roomStats, setRoomStats] = useState<RoomStats>({
+    total: 0,
+    available: 0,
+    occupied: 0,
+    maintenance: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(true)
+  
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
     roomNumber: string
@@ -34,17 +62,142 @@ export const RoomManagement = () => {
     isOpen: false,
     roomNumber: "",
   })
+
+  // Get the rooms to display (either search results or paginated rooms)
+  const displayRooms = isSearchMode ? searchResults : rooms
+
+  // NEW: Function to fetch room statistics
+  const fetchRoomStats = async () => {
+    try {
+      setStatsLoading(true)
+      const response = await fetch(`${API_BASE_URL}/rooms/stats`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch room statistics')
+      }
+      
+      const stats = await response.json()
+      setRoomStats(stats)
+    } catch (error) {
+      console.error("Failed to fetch room stats:", error)
+      toast({
+        title: "Warning",
+        description: "Failed to load room statistics",
+        variant: "destructive",
+      })
+      // Set fallback stats
+      setRoomStats({
+        total: 0,
+        available: 0,
+        occupied: 0,
+        maintenance: 0
+      })
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  // Debouncing Search Functionality
+  useEffect(() => {
+    const trimmedTerm = searchTerm.trim()
+  
+    // If search input is empty, exit search mode and show paginated results
+    if (trimmedTerm.length < 3) {
+      setIsSearchMode(false)
+      setSearchResults([])
+      return
+    }
+  
+    setIsSearching(true)
+  
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const searchResult = await searchRoomsAPI(trimmedTerm)
+        setSearchResults(searchResult)
+        setIsSearchMode(true)
+      } catch (error) {
+        console.error("Search failed:", error)
+        setSearchResults([])
+        setIsSearchMode(true)
+        toast({
+          title: "Error",
+          description: "Failed to search rooms. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsSearching(false)
+      }
+    }, 500)
+  
+    // Cleanup on re-run or unmount
+    return () => clearTimeout(debounceTimer)
+  }, [searchTerm])
+
+  // Fetch rooms with pagination
+  const fetchPaginatedRooms = async(page: number) => {
+    const offset = (page - 1) * limit
+    const res = await fetch(`${API_BASE_URL}/rooms?limit=${limit}&offset=${offset}`)
+    if(!res.ok) throw new Error('Failed to fetch rooms')
+    return await res.json()
+  }
+
+  // Load More rooms Functionality
+  const handleLoadMore = async() => {
+    if (isLoadingMore || !hasMoreRooms || isSearchMode) return
+
+    setIsLoadingMore(true)
+    try {
+      const nextPage = currentPage + 1
+      const data = await fetchPaginatedRooms(nextPage)
+      
+      // Safely handle the response
+      const newRooms = data?.rooms || []
+      const newTotalCount = data?.total_count || 0
+      
+      setRooms(prev => [...prev, ...newRooms])
+      setCurrentPage(nextPage)
+      setHasMoreRooms(rooms.length + newRooms.length < newTotalCount)
+      
+      toast({
+        title: "Success",
+        description: `Loaded ${newRooms.length} more rooms`, 
+      })
+    } catch (error) {
+      console.error("Load more failed:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load more rooms. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
   
   const fetchRooms = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/rooms`)
-      if (!response.ok) {
-        throw new Error("Failed to fetch rooms")
-      }
-      const data = await response.json()
-      setRooms(data)
+      const response = await fetchPaginatedRooms(1)
+      
+      // Safely handle the response
+      const roomsData = response?.rooms || []
+      const totalCountData = response?.total_count || 0
+      
+      setRooms(roomsData)
+      setCurrentPage(1)
+      setTotalCount(totalCountData)
+      setHasMoreRooms(roomsData.length < totalCountData)
+      
+      // Clear search when refreshing
+      setSearchTerm("")
+      setSearchResults([])
+      setIsSearchMode(false)
     } catch (error) {
+      console.error("Fetch rooms error:", error)
+      // Set empty state on error
+      setRooms([])
+      setTotalCount(0)
+      setHasMoreRooms(false)
       toast({
         title: "Error",
         description: "Failed to fetch rooms from server",
@@ -55,8 +208,16 @@ export const RoomManagement = () => {
     }
   }
 
+  // UPDATED: Load both rooms and stats on component mount
   useEffect(() => {
-    fetchRooms()
+    const loadInitialData = async () => {
+      await Promise.all([
+        fetchRooms(),
+        fetchRoomStats()
+      ])
+    }
+    
+    loadInitialData()
   }, [])
   
   const handleDeleteConfirm = (roomNumber: string) => {
@@ -71,18 +232,27 @@ export const RoomManagement = () => {
       const response = await fetch(`${API_BASE_URL}/rooms/${deleteConfirm.roomNumber}`, {
         method: "DELETE",
       })
+      
       if (!response.ok) {
-        throw new Error("Failed to delete room")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || "Failed to delete room")
       }
+      
       toast({
         title: "Success",
         description: "Room deleted successfully",
       })
-      fetchRooms()
+      
+      // UPDATED: Refresh both room list and stats
+      await Promise.all([
+        fetchRooms(),
+        fetchRoomStats()
+      ])
     } catch (error) {
+      console.error("Delete error:", error)
       toast({
         title: "Error",
-        description: "Failed to delete room",
+        description: error instanceof Error ? error.message : "Failed to delete room",
         variant: "destructive",
       })
     } finally {
@@ -108,12 +278,19 @@ export const RoomManagement = () => {
     setEditingRoom(null)
   }
 
-  const handleRoomAdded = () => {
-    fetchRooms()
+  // UPDATED: Refresh both rooms and stats when room is added/updated
+  const handleRoomAdded = async () => {
+    await Promise.all([
+      fetchRooms(),
+      fetchRoomStats()
+    ])
   }
 
-  const handleRoomUpdated = () => {
-    fetchRooms()
+  const handleRoomUpdated = async () => {
+    await Promise.all([
+      fetchRooms(),
+      fetchRoomStats()
+    ])
   }
 
   const handleSettingsOpen = () => {
@@ -122,6 +299,34 @@ export const RoomManagement = () => {
 
   const handleSettingsClose = () => {
     setIsSettingsOpen(false)
+  }
+
+  // UPDATED: Refresh both rooms and stats when refresh button is clicked
+  const handleRefresh = async () => {
+    await Promise.all([
+      fetchRooms(),
+      fetchRoomStats()
+    ])
+  }
+
+  // Fixed API function for searching rooms
+  const searchRoomsAPI = async (searchTerm: string): Promise<Room[]> => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(searchTerm.trim())}`) 
+  
+      if (!res.ok) {
+        if (res.status === 404) {
+          return [] // Room not found, return empty array
+        }
+        throw new Error("Search request failed")
+      }
+  
+      const room = await res.json()
+      return [room] // Return as array to keep it Room[]
+    } catch (error) {
+      console.error("Search failed:", error)
+      throw error // Re-throw to handle in the calling function
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -152,44 +357,61 @@ export const RoomManagement = () => {
     }
   }
 
-  const statusCounts = rooms.reduce(
-    (acc, room) => {
-      acc.total++
-      switch (room.status) {
-        case "Available":
-          acc.available++
-          break
-        case "Occupied":
-          acc.occupied++
-          break
-        case "Maintenance":
-          acc.maintenance++
-          break
-      }
-      return acc
+  // UPDATED: Use the dedicated room stats instead of calculating from paginated data
+  const statsDisplay = [
+    {
+      label: "Total Rooms",
+      value: roomStats.total,
+      color: "text-blue-600"
     },
-    { total: 0, available: 0, occupied: 0, maintenance: 0 },
-  )
-
-  const roomStats = [
-    { label: "Total Rooms", value: statusCounts.total, color: "text-blue-600" },
-    { label: "Available", value: statusCounts.available, color: "text-green-600" },
-    { label: "Occupied", value: statusCounts.occupied, color: "text-red-600" },
-    { label: "Maintenance", value: statusCounts.maintenance, color: "text-yellow-600" },
+    {
+      label: "Available",
+      value: roomStats.available,
+      color: "text-green-600"
+    },
+    {
+      label: "Occupied",
+      value: roomStats.occupied,
+      color: "text-red-600"
+    },
+    {
+      label: "Maintenance",
+      value: roomStats.maintenance,
+      color: "text-yellow-600"
+    }
   ]
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Room Management</h2>
+        
+        <div className="relative flex-1 sm:flex-none">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          
+          <Input
+            placeholder="Enter Room Number"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 w-full sm:w-64"
+            disabled={isSearching}
+          />
+
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
-            onClick={fetchRooms}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={loading || statsLoading}
             className="flex items-center gap-2 bg-transparent"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${(loading || statsLoading) ? "animate-spin" : ""}`} />
             Refresh
           </Button>
           <div className="flex gap-2">
@@ -205,13 +427,47 @@ export const RoomManagement = () => {
         </div>
       </div>
 
-      {/* Room Statistics */}
+      {/* Search Status Indicator */}
+      {isSearchMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-blue-800 text-sm">
+              {searchResults.length > 0 
+                ? `Found ${searchResults.length} room(s) matching "${searchTerm}"`
+                : `No rooms found matching "${searchTerm}"`
+              }
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("")
+                setIsSearchMode(false)
+                setSearchResults([])
+              }}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              Clear Search
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Room Statistics - UPDATED to use dedicated stats */}
       <div className="grid w-full gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col">
-        {roomStats.map((stat, index) => (
+        {statsDisplay.map((stat, index) => (
           <Card key={index} className="shadow-sm w-full">
             <CardContent className="p-4 text-center">
-              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-              <div className="text-sm text-gray-600">{stat.label}</div>
+              <div className={`text-2xl font-bold ${stat.color}`}>
+                {statsLoading ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-16 mx-auto rounded"></div>
+                ) : (
+                  stat.value
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                {stat.label}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -231,8 +487,13 @@ export const RoomManagement = () => {
               <RefreshCw className="h-6 w-6 animate-spin mr-2" />
               <span className="text-gray-500">Loading rooms...</span>
             </div>
-          ) : rooms.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No rooms found. Add your first room to get started.</div>
+          ) : (displayRooms || []).length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              {isSearchMode 
+                ? `No rooms found matching "${searchTerm}". Try a different search term.`
+                : "No rooms found. Add your first room to get started."
+              }
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -249,7 +510,7 @@ export const RoomManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rooms.map((room) => (
+                  {(displayRooms || []).map((room) => (
                     <TableRow key={room.room_number}>
                       <TableCell className="font-medium">
                         <div>
@@ -266,15 +527,15 @@ export const RoomManagement = () => {
                       <TableCell className="hidden lg:table-cell">{room.floor}</TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <div className="flex gap-1 flex-wrap">
-                          {room.amenities.slice(0, 3).map((amenity) => (
+                          {(room.amenities || []).slice(0, 3).map((amenity) => (
                             <Badge key={amenity} variant="secondary" className="text-xs flex items-center gap-1">
                               {getAmenityIcon(amenity)}
                               {amenity}
                             </Badge>
                           ))}
-                          {room.amenities.length > 3 && (
+                          {(room.amenities || []).length > 3 && (
                             <Badge variant="secondary" className="text-xs">
-                              +{room.amenities.length - 3}
+                              +{(room.amenities || []).length - 3}
                             </Badge>
                           )}
                         </div>
@@ -303,6 +564,27 @@ export const RoomManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Load More Button - Only show when not in search mode */}
+      {!isSearchMode && hasMoreRooms && !loading && (
+        <div className="flex justify-center mt-4">
+          <Button
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            variant="outline"
+            className="w-full sm:w-auto px-8 py-2"
+          >
+            {isLoadingMore ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                Loading More...
+              </>
+            ) : (
+              "Load More Rooms"
+            )}
+          </Button>
+        </div> 
+      )}
 
       {/* Room Form Dialog */}
       <RoomFormDialog

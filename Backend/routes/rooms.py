@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from models.room import Room, RoomCreate, RoomUpdate
 from supabase_client import supabase
 
@@ -60,35 +60,89 @@ def check_room_has_active_bookings(room_number: str) -> bool:
 
     return False
 
-@router.get("/rooms")
-def get_rooms():
+@router.get("/rooms/stats")
+def get_room_stats_simple():
+    """
+    Fetch room statistics based purely on the 'status' field from the database.
+    Assumes status values are: 'Available', 'Occupied', 'Maintenance'.
+    """
     try:
-        # Use the view to get complete room information
-        rooms_result = supabase.table("rooms_with_details").select("*").execute()
-        
+        # Fetch all rooms with their status
+        rooms_result = supabase.table("rooms_with_details").select("status").execute()
+
+        if not rooms_result.data:
+            return {
+                "total": 0,
+                "available": 0,
+                "occupied": 0,
+                "maintenance": 0
+            }
+
+        # Initialize stats
+        stats = {
+            "total": len(rooms_result.data),
+            "available": 0,
+            "occupied": 0,
+            "maintenance": 0
+        }
+
+        # Count based on exact casing
+        for room in rooms_result.data:
+            status = room.get("status")
+            if status == "Available":
+                stats["available"] += 1
+            elif status == "Occupied":
+                stats["occupied"] += 1
+            elif status == "Maintenance":
+                stats["maintenance"] += 1
+
+        return stats
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch room stats: {str(e)}")
+
+
+@router.get("/rooms")
+def get_rooms(limit: int = Query(8, ge=1), offset: int = Query(0, ge=0)):
+    try:
+        # Count total rooms by counting room_id in view
+        total_result = supabase.table("rooms_with_details").select("room_id", count="exact").execute()
+        total_count = total_result.count or 0
+
+        # Fetch paginated data using room_id for uniqueness
+        rooms_result = (
+            supabase.table("rooms_with_details")
+            .select("*")
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+
         rooms = []
         for room_data in rooms_result.data:
-            # Get the stored status from database
             stored_status = room_data["status"]
-            
-            # Determine dynamic status based on bookings
             dynamic_status = determine_room_status(room_data["room_number"], stored_status)
-            
+
             room = {
+                "room_id": room_data["room_id"],  # use this in frontend if needed
                 "room_number": room_data["room_number"],
                 "room_type": room_data["room_type"],
-                "status": dynamic_status,  # Use dynamic status
+                "status": dynamic_status,
                 "price": int(room_data["price"]) if room_data["price"] else 0,
                 "capacity": room_data["capacity"] if room_data["capacity"] else 0,
                 "floor": room_data["floor"],
                 "amenities": room_data["amenities"] if room_data["amenities"] else []
             }
-            
+
             rooms.append(room)
-        
-        return rooms
+
+        return {
+            "rooms": rooms,
+            "total_count": total_count
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 
 @router.get("/rooms/{room_number}")
 def get_room(room_number: str):

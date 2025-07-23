@@ -100,7 +100,6 @@ const PaymentSuccess = () => {
 
       try {
         console.log("🔍 Fetching booking details for ID:", bookingId)
-        // console.log("🌐 VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL)
 
         // Fetch booking details
         const bookingResponse = await fetch(`${API_BASE_URL}/bookings/${bookingId}`)

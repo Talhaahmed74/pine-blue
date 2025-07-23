@@ -28,7 +28,7 @@ const Rooms = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [sortBy, setSortBy] = useState("price-low")
   const [filterBy, setFilterBy] = useState("all")
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 
   // Image mapping for different room types
   const getImageForRoomType = (roomName: string) => {

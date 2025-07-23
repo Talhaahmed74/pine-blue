@@ -47,7 +47,7 @@ const BookRoom = () => {
   const [guestEmail, setGuestEmail] = useState("")
   const [guestPhone, setGuestPhone] = useState("")
   const [specialRequests, setSpecialRequests] = useState("")
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
   // Image mapping for room types
   const getImageForRoomType = (roomName: string) => {
     const normalizedName = roomName.toLowerCase()

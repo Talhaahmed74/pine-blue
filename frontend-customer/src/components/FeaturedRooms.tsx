@@ -18,7 +18,7 @@ interface RoomType {
 const FeaturedRooms = () => {
   const [rooms, setRooms] = useState<RoomType[]>([])
   const [loading, setLoading] = useState(true)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
   // Image mapping for different room types
   const getImageForRoomType = (roomName: string) => {
     const normalizedName = roomName.toLowerCase()
