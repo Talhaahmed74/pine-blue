@@ -8,7 +8,7 @@ from supabase_client import supabase
 import asyncio
 
 logger = logging.getLogger(__name__)
-
+REDIS_AVAILABLE = True if r else False
 class CacheManager:
     """Centralized cache management with event-driven invalidation"""
     
@@ -33,46 +33,51 @@ class CacheManager:
     
     @staticmethod
     def get_cache(key: str) -> Optional[Any]:
-        """Get data from cache"""
+        if not REDIS_AVAILABLE:
+            return None
         try:
             cached_data = r.get(key)
             if cached_data:
                 return json.loads(cached_data)
         except Exception as e:
-            logger.warning(f"Cache get failed for key {key}: {e}")
+            logger.debug(f"Cache get failed for key {key}: {e}")
         return None
-    
+
     @staticmethod
-    def set_cache(key: str, data: Any, ttl: int = DEFAULT_TTL) -> bool:
-        """Set data in cache with TTL"""
+    def set_cache(key: str, data: Any, ttl: int = CacheManager.DEFAULT_TTL) -> bool:
+        if not REDIS_AVAILABLE:
+            return False
         try:
             r.setex(key, ttl, json.dumps(data, default=str))
             return True
         except Exception as e:
-            logger.warning(f"Cache set failed for key {key}: {e}")
+            logger.debug(f"Cache set failed for key {key}: {e}")
             return False
-    
+
     @staticmethod
     def delete_cache(key: str) -> bool:
-        """Delete specific cache key"""
+        if not REDIS_AVAILABLE:
+            return False
         try:
             r.delete(key)
             return True
         except Exception as e:
-            logger.warning(f"Cache delete failed for key {key}: {e}")
+            logger.debug(f"Cache delete failed for key {key}: {e}")
             return False
-    
+
     @staticmethod
     def delete_pattern(pattern: str) -> int:
-        """Delete all keys matching pattern"""
+        if not REDIS_AVAILABLE:
+            return 0
         try:
             keys = r.keys(pattern)
             if keys:
                 return r.delete(*keys)
             return 0
         except Exception as e:
-            logger.warning(f"Cache pattern delete failed for pattern {pattern}: {e}")
+            logger.debug(f"Cache pattern delete failed for pattern {pattern}: {e}")
             return 0
+
     
     @staticmethod
     async def get_or_refresh_cache(key: str, ttl: int, fetch_func):
@@ -185,18 +190,11 @@ def invalidate_cache_on_booking_change(func):
 
 # Add this helper function for billing settings
 async def get_billing_settings_cached() -> dict:
-    """
-    Get billing settings from cache or database
-    Returns: dict with 'vat' and 'discount' keys
-    """
     try:
-        # Try to get from cache first
         cached_settings = CacheManager.get_cache(CacheManager.BILLING_SETTINGS_KEY)
         if cached_settings:
-            logger.info("✅ Billing settings loaded from cache")
             return cached_settings
-        
-        # If not in cache, fetch from database
+
         settings_result = await asyncio.to_thread(
             lambda: supabase.table("billing_settings")
             .select("*")
@@ -204,27 +202,18 @@ async def get_billing_settings_cached() -> dict:
             .limit(1)
             .execute()
         )
-        
+
         if settings_result.data:
             settings = {
                 "vat": float(settings_result.data[0]["vat"]),
                 "discount": float(settings_result.data[0]["discount"])
             }
         else:
-            # Default values if no settings found
             settings = {"vat": 13.0, "discount": 0.0}
-        
-        # Cache the settings for 24 hours
-        CacheManager.set_cache(
-            CacheManager.BILLING_SETTINGS_KEY,
-            settings,
-            CacheManager.BILLING_SETTINGS_TTL
-        )
-        
-        logger.info("✅ Billing settings loaded from DB and cached")
+
+        CacheManager.set_cache(CacheManager.BILLING_SETTINGS_KEY, settings, CacheManager.BILLING_SETTINGS_TTL)
         return settings
-        
+
     except Exception as e:
-        logger.error(f"Error getting billing settings: {e}")
-        # Return default values on error
+        logger.warning(f"⚠️ Billing settings fallback to defaults due to: {e}")
         return {"vat": 13.0, "discount": 0.0}
