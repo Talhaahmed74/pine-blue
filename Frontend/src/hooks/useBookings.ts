@@ -1,22 +1,18 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { toast } from "@/components/ui/use-toast";
 import { useBookingState } from "@/components/AppStateContext";
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
 
 const LIMIT = 8;
 const DEBOUNCE_DELAY = 400;
 const BACKGROUND_REFRESH_INTERVAL = 300000; // 5 minutes
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export const useBookings = () => {
   const { bookingState, dispatchBooking } = useBookingState();
   const {
     recentBookings,
+    searchResults,
     isLoading,
     searchTerm,
     page,
@@ -27,12 +23,26 @@ export const useBookings = () => {
     isLoadingMoreSearch,
   } = bookingState;
 
-  const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  // Refs to prevent race conditions
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitialLoadedRef = useRef(false);
+  const isFetchingRef = useRef(false);
+  const lastSearchTermRef = useRef("");
 
+  // Abort pending requests
+  const abortPendingRequests = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  const abortSearchRequests = () => {
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+  };
 
   // Normalize booking data
   const normalizeBooking = (booking: any) => ({
@@ -47,15 +57,22 @@ export const useBookings = () => {
 
   // Fetch bookings with pagination
   const fetchBookings = useCallback(async (pageNum = 0, append = false) => {
+    // Prevent concurrent fetches
+    if (!append && isFetchingRef.current) return;
+    if (append) isFetchingRef.current = true;
+
+    // Abort previous request
+    abortPendingRequests();
+    abortControllerRef.current = new AbortController();
+
     try {
-      if (!append) dispatchBooking({ type: 'SET_LOADING', payload: true });
-      else setIsLoadingMore(true);
+      if (!append) {
+        dispatchBooking({ type: 'SET_LOADING', payload: true });
+      }
 
       const bookingsRes = await axios.get(`${API_BASE_URL}/dashboard/bookings`, {
-        params: {
-          limit: LIMIT,
-          offset: pageNum * LIMIT,
-        },
+        params: { limit: LIMIT, offset: pageNum * LIMIT },
+        signal: abortControllerRef.current.signal,
       });
 
       const bookingsData = bookingsRes.data.bookings || [];
@@ -71,8 +88,13 @@ export const useBookings = () => {
         dispatchBooking({ type: 'SET_PAGE', payload: pageNum });
       }
 
-      dispatchBooking({ type: 'SET_HAS_MORE_BOOKINGS', payload: normalizedBookings.length === LIMIT });
-    } catch (err) {
+      dispatchBooking({ 
+        type: 'SET_HAS_MORE_BOOKINGS', 
+        payload: normalizedBookings.length === LIMIT 
+      });
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
+      
       console.error("Failed to load bookings:", err);
       toast({
         title: "Error",
@@ -81,24 +103,47 @@ export const useBookings = () => {
       });
     } finally {
       dispatchBooking({ type: 'SET_LOADING', payload: false });
-      setIsLoadingMore(false);
+      isFetchingRef.current = false;
     }
   }, [dispatchBooking]);
 
-  // Search bookings
+  // Search bookings with abort controller
   const searchBookings = useCallback(async (query: string, pageNum = 0, append = false) => {
-    if (!append) setIsSearching(true);
-    else dispatchBooking({ type: 'SET_LOADING_MORE_SEARCH', payload: true });
+    const trimmedQuery = query.trim();
+    
+    if (!trimmedQuery) {
+      return;
+    }
 
-    dispatchBooking({ type: 'SET_SEARCH_MODE', payload: true });
+    // Don't search if it's the same as last search
+    if (!append && trimmedQuery === lastSearchTermRef.current && isSearchMode) {
+      return;
+    }
+
+    if (!append) {
+      lastSearchTermRef.current = trimmedQuery;
+    }
+
+    // Abort previous search
+    abortSearchRequests();
+    searchAbortControllerRef.current = new AbortController();
 
     try {
+      if (!append) {
+        dispatchBooking({ type: 'SET_LOADING', payload: true });
+      } else {
+        dispatchBooking({ type: 'SET_LOADING_MORE_SEARCH', payload: true });
+      }
+
+      dispatchBooking({ type: 'SET_SEARCH_MODE', payload: true });
+
       const res = await axios.get(`${API_BASE_URL}/dashboard/bookings/search`, {
         params: {
-          query: query.toUpperCase(),
+          query: trimmedQuery.toUpperCase(),
           limit: LIMIT,
           offset: pageNum * LIMIT,
         },
+        signal: searchAbortControllerRef.current.signal,
       });
 
       const bookingsData = res.data.bookings || [];
@@ -106,130 +151,193 @@ export const useBookings = () => {
 
       if (append) {
         dispatchBooking({ 
-          type: 'LOAD_MORE_BOOKINGS', 
-          payload: { bookings: normalizedBookings, page: pageNum }
+          type: 'LOAD_MORE_SEARCH_RESULTS', 
+          payload: { 
+            results: normalizedBookings, 
+            page: pageNum,
+            hasMore: normalizedBookings.length === LIMIT 
+          }
         });
       } else {
-        dispatchBooking({ type: 'SET_RECENT_BOOKINGS', payload: normalizedBookings });
+        dispatchBooking({ type: 'SET_SEARCH_RESULTS', payload: normalizedBookings });
         dispatchBooking({ type: 'SET_SEARCH_PAGE', payload: 0 });
+        dispatchBooking({ 
+          type: 'SET_HAS_MORE_SEARCH_RESULTS', 
+          payload: normalizedBookings.length === LIMIT 
+        });
       }
-
-      dispatchBooking({ type: 'SET_HAS_MORE_SEARCH_RESULTS', payload: normalizedBookings.length === LIMIT });
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
+      
       console.error('Search failed:', err);
-      if (!append) dispatchBooking({ type: 'SET_RECENT_BOOKINGS', payload: [] });
+      if (!append) {
+        dispatchBooking({ type: 'SET_SEARCH_RESULTS', payload: [] });
+      }
       toast({
         title: "Error",
         description: "Failed to search bookings.",
         variant: "destructive",
       });
     } finally {
-      setIsSearching(false);
+      dispatchBooking({ type: 'SET_LOADING', payload: false });
       dispatchBooking({ type: 'SET_LOADING_MORE_SEARCH', payload: false });
     }
-  }, [dispatchBooking]);
+  }, [dispatchBooking, isSearchMode]);
 
-  // Debounced search
+  // Debounced search effect - CRITICAL FIX
   useEffect(() => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
-    if (searchTerm.trim()) {
-      if (/^BK\d*$/i.test(searchTerm.trim())) {
-        debounceTimer.current = setTimeout(() => {
-          searchBookings(searchTerm.trim());
-        }, DEBOUNCE_DELAY);
-      }
-    } else if (isSearchMode) {
-      fetchBookings(0, false);
-      dispatchBooking({ type: 'SET_SEARCH_MODE', payload: false });
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
 
+    const trimmedTerm = searchTerm.trim();
+
+    // Case 1: Empty search term
+    if (trimmedTerm.length === 0) {
+      if (isSearchMode) {
+        // Clear search mode immediately
+        dispatchBooking({ type: 'CLEAR_SEARCH' });
+        lastSearchTermRef.current = "";
+        abortSearchRequests();
+      }
+      return;
+    }
+
+    // Case 2: Not a valid booking ID pattern
+    if (!/^BK\d*$/i.test(trimmedTerm)) {
+      return; // Don't search for invalid patterns
+    }
+
+    // Case 3: Valid search term - debounce it
+    debounceTimerRef.current = setTimeout(() => {
+      searchBookings(trimmedTerm);
+    }, DEBOUNCE_DELAY);
+
     return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
-  }, [searchTerm, isSearchMode, fetchBookings, searchBookings]);
+  }, [searchTerm]); // ONLY depend on searchTerm, nothing else!
 
   // Handle load more
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (isSearchMode) {
       if (!hasMoreSearchResults || isLoadingMoreSearch) return;
       const nextSearchPage = searchPage + 1;
-      dispatchBooking({ type: 'SET_SEARCH_PAGE', payload: nextSearchPage });
       searchBookings(searchTerm.trim(), nextSearchPage, true);
     } else {
-      if (!hasMoreBookings || isLoadingMore) return;
+      if (!hasMoreBookings || isFetchingRef.current) return;
       const nextPage = page + 1;
-      dispatchBooking({ type: 'SET_PAGE', payload: nextPage });
       fetchBookings(nextPage, true);
     }
-  };
+  }, [
+    isSearchMode, 
+    hasMoreSearchResults, 
+    isLoadingMoreSearch, 
+    searchPage, 
+    searchTerm, 
+    searchBookings,
+    hasMoreBookings, 
+    page, 
+    fetchBookings
+  ]);
 
   // Optimistic delete
   const deleteBooking = async (bookingId: string) => {
     const previousBookings = [...recentBookings];
+    const previousSearchResults = [...searchResults];
+    
+    // Optimistically remove from both lists
     dispatchBooking({ type: 'DELETE_BOOKING', payload: bookingId });
 
     try {
       await axios.put(`${API_BASE_URL}/bookings/${bookingId}/cancel`);
       toast({
         title: "Success",
-        description: "Booking deleted successfully.",
+        description: "Booking cancelled successfully.",
       });
     } catch (err) {
       console.error("Delete failed:", err);
+      
+      // Rollback on error
       dispatchBooking({ type: 'SET_RECENT_BOOKINGS', payload: previousBookings });
+      if (isSearchMode) {
+        dispatchBooking({ type: 'SET_SEARCH_RESULTS', payload: previousSearchResults });
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to delete booking. Rolled back.",
+        description: "Failed to cancel booking. Rolled back.",
         variant: "destructive",
       });
     }
   };
 
-  // Optimistic update
+  // Optimistic update (no background refetch)
   const updateBooking = (updatedBooking: any) => {
-    const previousBookings = [...recentBookings];
     dispatchBooking({ type: 'UPDATE_BOOKING', payload: updatedBooking });
-
-    // Background revalidation
-    setTimeout(() => {
-      fetchBookings(0, false);
-    }, 1000);
+    
+    toast({
+      title: "Success",
+      description: "Booking updated successfully.",
+    });
   };
 
-// Background refresh
-useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isSearchMode) {
-        fetchBookings(0, false)
-      }
-    }, BACKGROUND_REFRESH_INTERVAL)
-  
-    return () => clearInterval(interval)
-  }, [fetchBookings, isSearchMode])
-  
-  // Initial fetch on mount
+  // Initial fetch on mount - FIXED
   useEffect(() => {
-    if (!isSearchMode && recentBookings.length === 0) {
-      fetchBookings(0, false)
+    if (!hasInitialLoadedRef.current) {
+      hasInitialLoadedRef.current = true;
+      
+      // Always load initial data
+      fetchBookings(0, false);
     }
-  }, [fetchBookings, isSearchMode, recentBookings.length])
-  
+  }, []); // Empty deps - run ONLY once on mount
+
+  // Background refresh (only when visible and not searching)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (
+        document.visibilityState === "visible" && 
+        !isSearchMode && 
+        !isFetchingRef.current
+      ) {
+        fetchBookings(0, false); // Silent refresh
+      }
+    }, BACKGROUND_REFRESH_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [isSearchMode, fetchBookings]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortPendingRequests();
+      abortSearchRequests();
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Return display bookings based on mode
+  const displayBookings = isSearchMode ? searchResults : recentBookings;
+
   return {
-    bookings: recentBookings,
+    bookings: displayBookings,
     fetchBookings,
     searchBookings,
     deleteBooking,
     updateBooking,
     handleLoadMore,
     isLoading,
-    isSearching,
+    isSearching: isLoading && isSearchMode,
     hasMoreBookings,
     hasMoreSearchResults,
     isSearchMode,
     searchTerm,
     setSearchTerm: (term: string) => dispatchBooking({ type: 'SET_SEARCH_TERM', payload: term }),
     isLoadingMoreSearch,
-  }
-  
+  };
 };

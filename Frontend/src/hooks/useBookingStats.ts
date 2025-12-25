@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "./useBookings"; // Assuming same supabase instance
+import { supabase } from "@/lib/supabaseClient"; // Assuming same supabase instance
 
 const STATS_REFRESH_INTERVAL = 180000; // 3 minutes
 
