@@ -44,7 +44,9 @@ class CacheManager:
         return None
 
     @staticmethod
-    def set_cache(key: str, data: Any, ttl: int = CacheManager.DEFAULT_TTL) -> bool:
+    def set_cache(key: str, data: Any, ttl: int = None) -> bool:
+        if ttl is None:
+            ttl = CacheManager.DEFAULT_TTL
         if not REDIS_AVAILABLE:
             return False
         try:
