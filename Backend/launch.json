@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "FastAPI Debug",
+        "type": "python",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "main:app",         // change if your app is in another file
+          "--reload"
+        ],
+        "jinja": true,
+        "console": "integratedTerminal",
+        "justMyCode": true
+      }
+    ]
+  }
+  

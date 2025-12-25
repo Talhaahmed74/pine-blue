@@ -1,45 +1,72 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from routes import bookings
-from routes import rooms
-from routes import dashboard
-from routes import room_type
-from routes import login
-from routes import billing
+from routes import bookings, rooms, dashboard, room_type, login, billing, notifications, availability_routes
+import logging
 
-app = FastAPI(title="Hotel Management API", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-origins = [
-    'http://localhost:8080/',
-    '127.0.0.1:55253'
-]
+app = FastAPI(
+    title="Hotel Management API", 
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-# Allow local frontend calls from React
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],  # Replace "*" with frontend URL in production
+    allow_origins=['*'],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(bookings.router, tags=["bookings"])
-app.include_router(rooms.router, tags=["rooms"])
+# Include routers - IMPORTANT: Order matters!
+# ⚠️ Check each router file to see if it already has route prefixes defined
+app.include_router(availability_routes.router, prefix="/availability", tags=['Availability'])
+app.include_router(bookings.router, tags=["bookings"])  # Remove prefix if bookings.router already defines /bookings
+app.include_router(rooms.router, tags=["rooms"])  # Remove prefix if rooms.router already defines /rooms
 app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(room_type.router, tags=["room-types"])
 app.include_router(login.router, tags=["login"])
 app.include_router(billing.router, tags=["billing"])
-# Mount static files (commented out to prevent errors if Frontend directory doesn't exist)
-# Uncomment the line below if you have a Frontend directory in your backend folder
-# app.mount("/", StaticFiles(directory="Frontend", html=True), name="static")
+app.include_router(notifications.router, prefix="/api/notifications", tags=['notifications'])
 
 @app.get("/")
 def read_root():
-    return {"message": "Hotel Management API is running!", "version": "1.0.0"}
+    return {
+        "message": "Hotel Management API v2.0",
+        "status": "running",
+        "endpoints": {
+            "availability": "/availability/*",
+            "bookings": "/bookings/*",
+            "rooms": "/rooms/*",
+            "dashboard": "/dashboard/*",
+            "room_types": "/room-types/*",
+            "auth": "/auth/*",
+            "billing": "/billing/*",
+            "notifications": "/api/notifications/*",
+            "docs": "/docs",
+            "redoc": "/redoc"
+        }
+    }
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "message": "FastAPI server is running"}
+    """Health check endpoint for monitoring"""
+    return {"status": "healthy", "version": "2.0.0"}
+
+# Log all routes on startup
+@app.on_event("startup")
+async def startup_event():
+    logger.info("🚀 Application starting up...")
+    logger.info("📋 Available routes:")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            logger.info(f"  {list(route.methods)[0]:6} {route.path}")
+    logger.info("✅ Application startup complete")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("🛑 Application shutting down...")

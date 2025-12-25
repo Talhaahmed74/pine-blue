@@ -4,7 +4,7 @@ from typing import List, Literal, Optional
 class Room(BaseModel):
     room_number: str
     room_type: str
-    status: Literal["Available", "Occupied", "Maintenance", "Cleaning", "Booked"]
+    status: Literal["Available", "Occupied", "Maintenance", "Booked"]
     price: float
     capacity: int
     floor: int

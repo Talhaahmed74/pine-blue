@@ -57,7 +57,7 @@ const Rooms = () => {
         setIsLoading(true)
 
         // Use the new endpoint that checks actual room availability
-        const response = await fetch(`${API_BASE_URL}/room-types-with-availability`)
+        const response = await fetch(`${API_BASE_URL}/availability/room-types/available-for-booking` )
 
         if (!response.ok) {
           throw new Error("Failed to fetch rooms")

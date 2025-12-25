@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { HotelBookingForm} from "@/components/HotelBookingForm"
-import { BookingDashboard } from "@/components/BookingDashboard";
-import { RoomManagement } from "@/components/RoomManagement";
+import { HotelBookingForm} from "@/components/admin/HotelBookingForm"
+import { BookingDashboard } from "@/components/admin/BookingDashboard";
+import { RoomManagement } from "@/components/admin/RoomManagement";
 import { BookingAnalytics } from "@/components/BookingAnalytics";
-import { IntegrationManagement } from "@/components/IntegrationManagement";
+import { IntegrationManagement } from "@/components/admin/IntegrationManagement";
 import { HotelNavbar } from "@/components/HotelNavbar";
 import { Calendar, Users, Settings, BarChart3, MapPin } from "lucide-react";
 

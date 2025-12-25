@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,6 +29,7 @@ import { cn } from "@/lib/utils"
 import { sendBookingEmail } from "@/components/emailService"
 import { billSettingsApi, type BillingSettings } from "@/apis/BillSetting_api"
 
+// Types
 interface RoomType {
   id: number
   name: string
@@ -57,22 +56,36 @@ interface Customer {
   phone: string
 }
 
+interface FormData {
+  guests: number
+  roomTypeId: number
+  roomNumber: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  status: string
+  source: string
+  discount: number
+  vat: number
+  totalAmount: number
+  paymentMethod: string
+  paymentStatus: string
+  specialRequests: string
+}
+
 // Toast Component
 const Toast = ({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) => {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose()
-    }, 5000)
+    const timer = setTimeout(onClose, 5000)
     return () => clearTimeout(timer)
   }, [onClose])
 
   const bgColor = type === "success" ? "bg-green-500" : "bg-red-500"
-  const icon = type === "success" ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />
+  const icon = type === "success" ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-4 w-4" />
 
   return (
-    <div
-      className={`fixed top-4 right-4 z-50 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-md`}
-    >
+    <div className={`fixed top-4 right-4 z-50 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-md`}>
       {icon}
       <span className="flex-1">{message}</span>
       <button onClick={onClose} className="text-white hover:text-gray-200">
@@ -83,9 +96,12 @@ const Toast = ({ message, type, onClose }: { message: string; type: "success" | 
 }
 
 export const HotelBookingForm = () => {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "")
+
+  // State Management
   const [checkInDate, setCheckInDate] = useState<Date>()
   const [checkOutDate, setCheckOutDate] = useState<Date>()
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     guests: 1,
     roomTypeId: 0,
     roomNumber: "",
@@ -103,29 +119,32 @@ export const HotelBookingForm = () => {
     specialRequests: "",
   })
 
-  // Billing settings state
+  // Data States
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null)
-  const [loadingBillingSettings, setLoadingBillingSettings] = useState(false)
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
+  const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
+  const [selectedRoom, setSelectedRoom] = useState<AvailableRoom | null>(null)
 
-  // Customer search states
+  // Customer Search States
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerSearch, setCustomerSearch] = useState("")
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const customerSearchRef = useRef<HTMLDivElement>(null)
 
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
-  const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
+  // Loading States
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingRooms, setIsLoadingRooms] = useState(false)
   const [isLoadingRoomTypes, setIsLoadingRoomTypes] = useState(false)
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
+  const [loadingBillingSettings, setLoadingBillingSettings] = useState(false)
+
+  // UI States
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [dateError, setDateError] = useState("")
-  const [selectedRoom, setSelectedRoom] = useState<any | null>(null)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
-  // Fetch billing settings and room types on component mount
+
+  // Initialize data on mount
   useEffect(() => {
     fetchBillingSettings()
     fetchRoomTypes()
@@ -142,14 +161,10 @@ export const HotelBookingForm = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Validate dates whenever they change
+  // Date validation effect
   useEffect(() => {
     if (checkInDate && checkOutDate) {
-      if (checkInDate >= checkOutDate) {
-        setDateError("Check-out date must be after check-in date")
-      } else {
-        setDateError("")
-      }
+      setDateError(checkInDate >= checkOutDate ? "Check-out date must be after check-in date" : "")
     } else {
       setDateError("")
     }
@@ -167,26 +182,22 @@ export const HotelBookingForm = () => {
 
   // Customer search with debounce
   useEffect(() => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout)
-    }
+    if (searchTimeout) clearTimeout(searchTimeout)
+    
     if (customerSearch.length >= 2) {
-      const timeout = setTimeout(() => {
-        searchCustomers(customerSearch)
-      }, 300)
+      const timeout = setTimeout(() => searchCustomers(customerSearch), 300)
       setSearchTimeout(timeout)
     } else {
       setCustomers([])
       setShowCustomerDropdown(false)
     }
+    
     return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout)
-      }
+      if (searchTimeout) clearTimeout(searchTimeout)
     }
   }, [customerSearch])
 
-  // Update form data when billing settings are loaded
+  // Update form data with billing settings
   useEffect(() => {
     if (billingSettings) {
       setFormData((prev) => ({
@@ -197,6 +208,13 @@ export const HotelBookingForm = () => {
     }
   }, [billingSettings])
 
+  // Calculate total when relevant fields change
+  useEffect(() => {
+    const total = calculateTotal()
+    setFormData((prev) => ({ ...prev, totalAmount: total }))
+  }, [formData.roomTypeId, formData.discount, formData.vat, checkInDate, checkOutDate, roomTypes])
+
+  // API Functions
   const fetchBillingSettings = async () => {
     setLoadingBillingSettings(true)
     try {
@@ -210,7 +228,6 @@ export const HotelBookingForm = () => {
     } catch (err) {
       console.error("Error fetching billing settings:", err)
       showToast("Failed to load billing settings", "error")
-      // Set default values if API fails
       setBillingSettings({ vat: 13, discount: 0 } as BillingSettings)
     } finally {
       setLoadingBillingSettings(false)
@@ -220,7 +237,7 @@ export const HotelBookingForm = () => {
   const fetchRoomTypes = async () => {
     setIsLoadingRoomTypes(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/room-types-with-availability`)
+      const response = await fetch(`${API_BASE_URL}/availability/room-types-with-availability`)
       if (!response.ok) throw new Error("Failed to fetch room types")
       const data = await response.json()
       setRoomTypes(data)
@@ -237,7 +254,7 @@ export const HotelBookingForm = () => {
     setIsLoadingRooms(true)
     try {
       const response = await fetch(
-        `${API_BASE_URL}/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
+        `${API_BASE_URL}/availability/available-rooms/${roomType}?check_in=${checkInDate.toISOString().split("T")[0]}&check_out=${checkOutDate.toISOString().split("T")[0]}`,
       )
       if (!response.ok) throw new Error("Failed to fetch available rooms")
       const data = await response.json()
@@ -268,11 +285,68 @@ export const HotelBookingForm = () => {
     }
   }
 
+  // Utility Functions
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type })
+  }
+
+  const calculateTotal = (): number => {
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
+    if (!selectedRoomType || !checkInDate || !checkOutDate) return 0
+
+    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
+    const baseAmount = selectedRoomType.base_price * nights
+    const discountAmount = (baseAmount * formData.discount) / 100
+    const vatAmount = ((baseAmount - discountAmount) * formData.vat) / 100
+    return baseAmount - discountAmount + vatAmount
+  }
+
+  const getBillingBreakdown = () => {
+    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
+    if (!selectedRoomType || !checkInDate || !checkOutDate) {
+      return { nights: 0, baseAmount: 0, discountAmount: 0, vatAmount: 0, totalAmount: 0 }
+    }
+
+    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
+    const baseAmount = selectedRoomType.base_price * nights
+    const discountAmount = (baseAmount * formData.discount) / 100
+    const discountedAmount = baseAmount - discountAmount
+    const vatAmount = (discountedAmount * formData.vat) / 100
+    const totalAmount = discountedAmount + vatAmount
+
+    return { nights, baseAmount, discountAmount, vatAmount, totalAmount }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      guests: 1,
+      roomTypeId: 0,
+      roomNumber: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      status: "confirmed",
+      source: "Direct",
+      discount: billingSettings?.discount || 0,
+      vat: billingSettings?.vat || 0,
+      totalAmount: 0,
+      paymentMethod: "Cash",
+      paymentStatus: "Pending",
+      specialRequests: "",
+    })
+    setCheckInDate(undefined)
+    setCheckOutDate(undefined)
+    setAvailableRooms([])
+    setSelectedCustomer(null)
+    setCustomerSearch("")
+  }
+
+  // Event Handlers
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer)
     setCustomerSearch("")
     setShowCustomerDropdown(false)
-    // Auto-fill form with customer data
     setFormData((prev) => ({
       ...prev,
       firstName: customer.first_name,
@@ -286,7 +360,6 @@ export const HotelBookingForm = () => {
     setSelectedCustomer(null)
     setCustomerSearch("")
     setShowCustomerDropdown(false)
-    // Clear form fields
     setFormData((prev) => ({
       ...prev,
       firstName: "",
@@ -298,98 +371,45 @@ export const HotelBookingForm = () => {
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-    // When room type changes, reset room number and validate guests
+    
     if (field === "roomTypeId") {
       setFormData((prev) => ({ ...prev, roomNumber: "" }))
-      // Check if current guest count exceeds new room type capacity
       const selectedRoomType = roomTypes.find((rt) => rt.id === value)
       if (selectedRoomType && formData.guests > selectedRoomType.total_capacity) {
         showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
         setFormData((prev) => ({ ...prev, guests: selectedRoomType.total_capacity }))
       }
     }
+    
     if (field === "roomNumber") {
       const matchedRoom = availableRooms.find((room) => room.room_number === value)
       setSelectedRoom(matchedRoom || null)
     }
     
-    // Validate guest count when changed
     if (field === "guests") {
       const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
       if (selectedRoomType && (value as number) > selectedRoomType.total_capacity) {
         showToast(`Maximum ${selectedRoomType.total_capacity} guests allowed for ${selectedRoomType.name}`, "error")
-        return // Don't update if exceeds capacity
+        return
       }
     }
   }
 
-  // Handle check-in date change with validation
   const handleCheckInChange = (date: Date | undefined) => {
     setCheckInDate(date)
-    // If check-out date is before or equal to new check-in date, clear it
     if (date && checkOutDate && date >= checkOutDate) {
       setCheckOutDate(undefined)
     }
   }
 
-  // Handle check-out date change with validation
   const handleCheckOutChange = (date: Date | undefined) => {
     setCheckOutDate(date)
   }
 
-  // Calculate total amount based on room type, discount, and VAT
-  const calculateTotal = () => {
-    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
-    if (!selectedRoomType || !checkInDate || !checkOutDate) return 0
-
-    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
-    const baseAmount = selectedRoomType.base_price * nights
-    const discountAmount = (baseAmount * formData.discount) / 100
-    const vatAmount = ((baseAmount - discountAmount) * formData.vat) / 100
-    return baseAmount - discountAmount + vatAmount
-  }
-
-  // Get billing breakdown for display
-  const getBillingBreakdown = () => {
-    const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
-    if (!selectedRoomType || !checkInDate || !checkOutDate) {
-      return {
-        nights: 0,
-        baseAmount: 0,
-        discountAmount: 0,
-        vatAmount: 0,
-        totalAmount: 0,
-      }
-    }
-
-    const nights = Math.max((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24), 1)
-    const baseAmount = selectedRoomType.base_price * nights
-    const discountAmount = (baseAmount * formData.discount) / 100
-    const discountedAmount = baseAmount - discountAmount
-    const vatAmount = (discountedAmount * formData.vat) / 100
-    const totalAmount = discountedAmount + vatAmount
-
-    return {
-      nights,
-      baseAmount,
-      discountAmount,
-      vatAmount,
-      totalAmount,
-    }
-  }
-
-  // Update total when relevant fields change
-  useEffect(() => {
-    const total = calculateTotal()
-    setFormData((prev) => ({ ...prev, totalAmount: total }))
-  }, [formData.roomTypeId, formData.discount, formData.vat, checkInDate, checkOutDate, roomTypes])
-
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ message, type })
-  }
-
+  // Updated Admin Booking Handler - Separated Booking and Billing
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
     // Validate dates before submission
     if (!checkInDate || !checkOutDate) {
       showToast("Please select both check-in and check-out dates", "error")
@@ -413,7 +433,7 @@ export const HotelBookingForm = () => {
 
     setIsLoading(true)
     try {
-      // Use the new admin booking format
+      // Step 1: Create booking with admin endpoint (creates both booking and billing)
       const requestData = {
         room_type_id: formData.roomTypeId,
         room_number: selectedRoom?.room_number || formData.roomNumber,
@@ -426,7 +446,12 @@ export const HotelBookingForm = () => {
         total_amount: formData.totalAmount,
         special_requests: formData.specialRequests,
         status: formData.status,
+        guests: formData.guests,
+        payment_method: formData.paymentMethod,
+        payment_status: formData.paymentStatus,
       }
+
+      console.log("📤 Sending admin booking data:", requestData)
 
       const response = await fetch(`${API_BASE_URL}/admin/bookings`, {
         method: "POST",
@@ -442,6 +467,7 @@ export const HotelBookingForm = () => {
       }
 
       const result = await response.json()
+      console.log("✅ Admin booking response:", result)
 
       // Send booking email after successful booking
       try {
@@ -462,39 +488,80 @@ export const HotelBookingForm = () => {
       const customerInfo = selectedCustomer
         ? ` for ${selectedCustomer.first_name} ${selectedCustomer.last_name}`
         : " (Walk-in)"
-        showToast(
-          `Booking Successful ${customerInfo}! Booking ID: ${result.booking_id}, Assigned Room: ${result.room_number}`,
-          "success")
-        
+      
+      showToast(
+        `Admin Booking Successful ${customerInfo}! Booking ID: ${result.booking_id}, Room: ${result.room_number}, Amount: ₨${result.total_amount}`,
+        "success"
+      )
 
       // Reset form
-      setFormData({
-        guests: 1,
-        roomTypeId: 0,
-        roomNumber: "",
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        status: "confirmed",
-        source: "Direct",
-        discount: billingSettings?.discount || 0,
-        vat: billingSettings?.vat || 0,
-        totalAmount: 0,
-        paymentMethod: "Cash",
-        paymentStatus: "Pending",
-        specialRequests: "",
-      })
-      setCheckInDate(undefined)
-      setCheckOutDate(undefined)
-      setAvailableRooms([])
-      setSelectedCustomer(null)
-      setCustomerSearch("")
+      resetForm()
+      
     } catch (err: any) {
-      console.error("Booking error:", err)
-      showToast(`Booking Failed: ${err.message}`, "error")
+      console.error("Admin booking error:", err)
+      showToast(`Admin Booking Failed: ${err.message}`, "error")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Optional: Separate billing update function for admin if needed
+  const handleUpdateBilling = async (bookingId: string, billingData: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/billing/${bookingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(billingData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Billing update failed")
+      }
+
+      const result = await response.json()
+      showToast("Billing updated successfully", "success")
+      return result
+      
+    } catch (error: any) {
+      console.error("Billing update error:", error)
+      showToast(`Billing Update Failed: ${error.message}`, "error")
+      throw error
+    }
+  }
+
+  // Optional: Manual billing creation for existing bookings
+  const handleCreateBillingForBooking = async (bookingId: string, paymentData: any) => {
+    try {
+      const billingData = {
+        booking_id: bookingId,
+        payment_method: paymentData.paymentMethod || "Admin",
+        payment_status: paymentData.paymentStatus || "Pending",
+      }
+
+      const response = await fetch(`${API_BASE_URL}/billing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(billingData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Billing creation failed")
+      }
+
+      const result = await response.json()
+      showToast(`Billing created successfully for booking ${bookingId}`, "success")
+      return result
+      
+    } catch (error: any) {
+      console.error("Billing creation error:", error)
+      showToast(`Billing Creation Failed: ${error.message}`, "error")
+      throw error
     }
   }
 
@@ -507,6 +574,7 @@ export const HotelBookingForm = () => {
     showToast("Slip Generated! Your booking slip has been generated and will be downloaded shortly.", "success")
   }
 
+  // Computed values
   const selectedRoomType = roomTypes.find((rt) => rt.id === formData.roomTypeId)
   const billingBreakdown = getBillingBreakdown()
 
@@ -534,6 +602,7 @@ export const HotelBookingForm = () => {
                 <p className="text-sm text-gray-600">
                   Search by email or phone to book for existing customers, or leave empty for walk-in bookings
                 </p>
+                
                 {/* Selected Customer Display */}
                 {selectedCustomer && (
                   <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -570,6 +639,7 @@ export const HotelBookingForm = () => {
                         <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
                       )}
                     </div>
+                    
                     {/* Customer Dropdown */}
                     {showCustomerDropdown && (
                       <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -745,6 +815,7 @@ export const HotelBookingForm = () => {
                   <Hotel className="h-4 w-4" />
                   Available Rooms
                 </Label>
+                
                 {/* Warning if dates not selected */}
                 {(!checkInDate || !checkOutDate) && (
                   <div className="flex items-center gap-2 p-3 bg-yellow-50 text-yellow-700 rounded-md">
@@ -752,6 +823,7 @@ export const HotelBookingForm = () => {
                     <span>Please select both check-in and check-out dates to see available rooms.</span>
                   </div>
                 )}
+                
                 {/* Date error warning */}
                 {dateError && (
                   <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-md">
@@ -759,7 +831,8 @@ export const HotelBookingForm = () => {
                     <span>Please fix the date selection to see available rooms.</span>
                   </div>
                 )}
-                {/* If dates are selected and valid, show available rooms or loading */}
+                
+                {/* Available rooms selection */}
                 {checkInDate && checkOutDate && !dateError && (
                   <>
                     {isLoadingRooms ? (
@@ -922,8 +995,9 @@ export const HotelBookingForm = () => {
                           <span className="text-gray-700">VAT ({formData.vat}%):</span>
                           <span className="font-medium">₨{billingBreakdown.vatAmount.toLocaleString()}</span>
                         </div>
+                        
                         {/* Payment Method and Status */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           <div className="space-y-2">
                             <Label htmlFor="paymentMethod" className="text-sm font-medium">
                               Payment Method
@@ -938,8 +1012,6 @@ export const HotelBookingForm = () => {
                               <SelectContent>
                                 <SelectItem value="Cash">Cash</SelectItem>
                                 <SelectItem value="Card">Card</SelectItem>
-                                
-                                
                               </SelectContent>
                             </Select>
                           </div>
@@ -961,6 +1033,7 @@ export const HotelBookingForm = () => {
                             </Select>
                           </div>
                         </div>
+                        
                         <Separator className="my-2" />
                         <div className="flex justify-between items-center text-lg font-bold text-blue-900">
                           <span>Total Amount:</span>

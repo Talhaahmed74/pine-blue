@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AppStateProvider } from "@/components/AppStateContext"; // Import the provider
 
 import Index from "./pages/Index";
 import Login from "./pages/login";
@@ -17,7 +18,6 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check authentication status on app startup
     const checkAuth = () => {
       try {
         const authStatus = localStorage.getItem("bluePinesAuth");
@@ -51,7 +51,6 @@ const App = () => {
     }
   };
 
-  // Show loading state while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
@@ -66,50 +65,48 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Default route - redirect based on auth status */}
-            <Route
-              path="/"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/home" replace />
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              }
-            />
+        <AppStateProvider> {/* Wrap with the state provider */}
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/home" replace />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
 
-            {/* Login page - redirect to home if already authenticated */}
-            <Route
-              path="/login"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/home" replace />
-                ) : (
-                  <Login onLogin={handleLogin} />
-                )
-              }
-            />
+              <Route
+                path="/login"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/home" replace />
+                  ) : (
+                    <Login onLogin={handleLogin} />
+                  )
+                }
+              />
 
-            {/* Home page - redirect to login if not authenticated */}
-            <Route
-              path="/home"
-              element={
-                isAuthenticated ? (
-                  <Index onLogout={handleLogout} />
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              }
-            />
+              <Route
+                path="/home"
+                element={
+                  isAuthenticated ? (
+                    <Index onLogout={handleLogout} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
 
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AppStateProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

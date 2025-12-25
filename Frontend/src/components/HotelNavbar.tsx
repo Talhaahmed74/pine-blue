@@ -1,15 +1,16 @@
-"use client"
-
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Bell, Settings, User, LogOut, Loader2 } from "lucide-react"
+import { Settings, User, LogOut, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { billSettingsApi } from "@/apis/BillSetting_api"
+import { notificationsApi } from "@/apis/notifications_api"
+import { useNotifications } from "@/hooks/useNotifications"
 import { toast } from "sonner"
+import { NotificationsPanel } from '@/components/admin/NotificationsPanel'
 
 interface HotelNavbarProps {
   onLogout: () => void
@@ -20,16 +21,31 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
     discount: "",
     vat: "",
   })
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isBillingSettingsOpen, setIsBillingSettingsOpen] = useState(false)
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [notificationSettings, setNotificationSettings] = useState({
+    notifications_enabled: true,
+  })
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
   
-  // Load current billing settings when dialog opens
+  const {
+    notifications,
+    unreadCount,
+    isConnected,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotifications()
+
+  // Load billing settings when dialog opens
   useEffect(() => {
-    if (isSettingsOpen) {
+    if (isBillingSettingsOpen) {
       loadBillingSettings()
     }
-  }, [isSettingsOpen])
+  }, [isBillingSettingsOpen])
 
   const loadBillingSettings = async () => {
     setLoading(true)
@@ -49,7 +65,24 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
     }
   }
 
-  const handleSaveChanges = async () => {
+  const loadNotificationSettings = async () => {
+    setSettingsLoading(true)
+    try {
+      const response = await notificationsApi.getSettings()
+      if (response.success) {
+        setNotificationSettings({
+          notifications_enabled: response.data.notifications_enabled,
+        })
+      }
+    } catch (error) {
+      console.error("Error loading notification settings:", error)
+      toast.error("Failed to load notification settings")
+    } finally {
+      setSettingsLoading(false)
+    }
+  }
+
+  const handleSaveBillingSettings = async () => {
     if (!billSettings.discount || !billSettings.vat) {
       toast.error("Please fill in both discount and VAT values")
       return
@@ -82,7 +115,7 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
 
       if (response.success) {
         toast.success("Billing settings updated successfully!")
-        setIsSettingsOpen(false)
+        setIsBillingSettingsOpen(false)
       } else {
         toast.error("Failed to update billing settings")
       }
@@ -91,6 +124,27 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
       toast.error("Failed to save billing settings")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveNotificationSettings = async () => {
+    setSettingsSaving(true)
+    try {
+      const response = await notificationsApi.updateSettings(notificationSettings)
+
+      if (response.success) {
+        toast.success("Notification settings updated successfully!")
+        setIsNotificationSettingsOpen(false)
+        // Reload the page to apply settings
+        window.location.reload()
+      } else {
+        toast.error("Failed to update notification settings")
+      }
+    } catch (error) {
+      console.error("Error saving notification settings:", error)
+      toast.error("Failed to save notification settings")
+    } finally {
+      setSettingsSaving(false)
     }
   }
 
@@ -111,13 +165,17 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <Button variant="outline" size="sm" className="relative hidden sm:flex bg-transparent">
-              <Bell className="h-4 w-4" />
-              <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-                5
-              </Badge>
-            </Button>
+            {/* Notifications Panel */}
+            <NotificationsPanel
+              unreadCount={unreadCount}
+              isConnected={isConnected}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onDelete={deleteNotification}
+              liveNotifications={notifications}
+            />
 
+            {/* Settings Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="hidden sm:flex bg-transparent">
@@ -125,9 +183,12 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                {/* Billing Settings */}
+                <Dialog open={isBillingSettingsOpen} onOpenChange={setIsBillingSettingsOpen}>
                   <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Configure Billing Settings</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      Configure Billing Settings
+                    </DropdownMenuItem>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -177,11 +238,90 @@ export const HotelNavbar = ({ onLogout }: HotelNavbarProps) => {
                         </div>
 
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setIsSettingsOpen(false)} disabled={saving}>
+                          <Button variant="outline" onClick={() => setIsBillingSettingsOpen(false)} disabled={saving}>
                             Cancel
                           </Button>
-                          <Button onClick={handleSaveChanges} disabled={saving}>
+                          <Button onClick={handleSaveBillingSettings} disabled={saving}>
                             {saving ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save Changes"
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+
+                <DropdownMenuSeparator />
+
+                {/* Notification Settings */}
+                <Dialog open={isNotificationSettingsOpen} onOpenChange={setIsNotificationSettingsOpen}>
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      Notification Settings
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Notification Settings Configuration</DialogTitle>
+                    </DialogHeader>
+
+                    {settingsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span className="ml-2">Loading settings...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="notifications" className="text-right">
+                              Enable Notifications
+                            </Label>
+                            <div className="col-span-3">
+                              <button
+                                id="notifications"
+                                type="button"
+                                onClick={() =>
+                                  setNotificationSettings({
+                                    ...notificationSettings,
+                                    notifications_enabled: !notificationSettings.notifications_enabled,
+                                  })
+                                }
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 ${
+                                  notificationSettings.notifications_enabled ? 'bg-black' : 'bg-gray-200'
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    notificationSettings.notifications_enabled ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                              <p className="text-xs text-gray-500 mt-2">
+                                {notificationSettings.notifications_enabled
+                                  ? 'Notifications are enabled'
+                                  : 'Notifications are disabled'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsNotificationSettingsOpen(false)}
+                            disabled={settingsSaving}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveNotificationSettings} disabled={settingsSaving}>
+                            {settingsSaving ? (
                               <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                 Saving...

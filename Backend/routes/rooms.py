@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
-from models.room import Room, RoomCreate, RoomUpdate
+from routes.notifications import trigger_room_status_changed
 from supabase_client import supabase
+from utils.cache_helper import CacheManager
+from typing import Optional
 
 router = APIRouter()
 
@@ -18,19 +20,14 @@ def determine_room_status(room_number: str, stored_status: str) -> str:
         .eq("is_cancelled", False) \
         .execute()
 
-    if not bookings_result.data:
-        return stored_status
-
-    for booking in bookings_result.data:
+    for booking in bookings_result.data or []:
         try:
             check_in = datetime.strptime(booking["check_in"], "%Y-%m-%d").date()
             check_out = datetime.strptime(booking["check_out"], "%Y-%m-%d").date()
-
             if check_in <= today < check_out:
-                return "Occupied"  # ✅ Only if the room is actually booked *today*
-        except (ValueError, KeyError):
+                return "Occupied"
+        except Exception:
             continue
-
     return stored_status
 
 def check_room_has_active_bookings(room_number: str) -> bool:
@@ -45,50 +42,34 @@ def check_room_has_active_bookings(room_number: str) -> bool:
         .eq("is_cancelled", False) \
         .execute()
 
-    if not bookings_result.data:
-        return False
-
-    for booking in bookings_result.data:
+    for booking in bookings_result.data or []:
         try:
-            check_in = datetime.strptime(booking["check_in"], "%Y-%m-%d").date()
-            check_out = datetime.strptime(booking["check_out"], "%Y-%m-%d").date()
-
-            if check_in <= today < check_out:
+            ci = datetime.strptime(booking["check_in"], "%Y-%m-%d").date()
+            co = datetime.strptime(booking["check_out"], "%Y-%m-%d").date()
+            if ci <= today < co:
                 return True
-        except (ValueError, KeyError):
+        except Exception:
             continue
-
     return False
 
 @router.get("/rooms/stats")
 def get_room_stats_simple():
     """
-    Fetch room statistics based purely on the 'status' field from the database.
-    Assumes status values are: 'Available', 'Occupied', 'Maintenance'.
+    Fetch room statistics with DYNAMIC status calculation.
+    This ensures stats reflect the actual current status (including occupied rooms from bookings).
     """
+    # Try to get from cache first
+    cache_key = CacheManager.ROOM_STATS_KEY
+    cached = CacheManager.get_cache(cache_key)
+    if cached:
+        return cached
+    
     try:
-        # Fetch all rooms with their status
-        rooms_result = supabase.table("rooms_with_details").select("status").execute()
+        rooms_data = supabase.table("rooms_with_details").select("room_number, status").execute().data or []
+        stats = {"total": len(rooms_data), "available": 0, "occupied": 0, "maintenance": 0}
 
-        if not rooms_result.data:
-            return {
-                "total": 0,
-                "available": 0,
-                "occupied": 0,
-                "maintenance": 0
-            }
-
-        # Initialize stats
-        stats = {
-            "total": len(rooms_result.data),
-            "available": 0,
-            "occupied": 0,
-            "maintenance": 0
-        }
-
-        # Count based on exact casing
-        for room in rooms_result.data:
-            status = room.get("status")
+        for r in rooms_data:
+            status = determine_room_status(r["room_number"], r["status"])
             if status == "Available":
                 stats["available"] += 1
             elif status == "Occupied":
@@ -96,193 +77,225 @@ def get_room_stats_simple():
             elif status == "Maintenance":
                 stats["maintenance"] += 1
 
+        CacheManager.set_cache(cache_key, stats, 600)
         return stats
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch room stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/rooms")
-def get_rooms(limit: int = Query(8, ge=1), offset: int = Query(0, ge=0)):
-    try:
-        # Count total rooms by counting room_id in view
-        total_result = supabase.table("rooms_with_details").select("room_id", count="exact").execute()
-        total_count = total_result.count or 0
+def get_rooms(
+    limit: int = Query(8, ge=1), 
+    offset: int = Query(0, ge=0),
+    status: str = Query(None, description="Filter by room status: Available, Occupied, or Maintenance")
+):
+    """
+    Get rooms with optional status filtering and pagination.
+    
+    - If status is provided, fetch all rooms with that status (ignores pagination when filtering)
+    - If no status, use normal pagination
+    """
+    
+    # Create cache key based on whether we're filtering or paginating
+    cache_key = f"rooms_list:{status or 'all'}:{offset}:{limit}"
+    cached = CacheManager.get_cache(cache_key)
+    if cached:
+        return cached
 
-        # Fetch paginated data using room_id for uniqueness
+    try:
+        query = supabase.table("rooms_with_details").select("*", count="exact")
+        data = query.execute().data or []
+
+        rooms = []
+        for rd in data:
+            dynamic_status = determine_room_status(rd["room_number"], rd["status"])
+            if status and dynamic_status != status:
+                continue
+            rooms.append({
+                "room_id": rd["room_id"],
+                "room_number": rd["room_number"],
+                "room_type": rd["room_type"],
+                "status": dynamic_status,
+                "price": int(rd.get("price") or 0),
+                "capacity": rd.get("capacity") or 0,
+                "floor": rd["floor"],
+                "amenities": rd.get("amenities") or []
+            })
+
+        if not status:
+            rooms = rooms[offset:offset + limit]
+        result = {"rooms": rooms, "total_count": len(data)}
+
+        CacheManager.set_cache(cache_key, result, CacheManager.DEFAULT_TTL)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    
+
+@router.get("/rooms/search")
+def search_rooms(query: str):
+    try:
+        # Normalize query and small TTL (search results change frequently)
+        norm_q = query.strip().lower()
+        if not norm_q:
+            return []
+
+        cache_key = f"room_search:{norm_q}"
+        cached_result = CacheManager.get_cache(cache_key)
+        if cached_result:
+            return cached_result
+
+        # Limit search results to avoid huge payloads and many DB round-trips
         rooms_result = (
             supabase.table("rooms_with_details")
             .select("*")
-            .range(offset, offset + limit - 1)
+            .ilike("room_number", f"%{query}%")
+            .limit(35)
             .execute()
         )
 
+        rows = rooms_result.data or []
+        if not rows:
+            return []
+
+        # Batch fetch bookings for all matched rooms to compute dynamic status in one go
+        room_numbers = [r["room_number"] for r in rows]
+        bookings_result = (
+            supabase.table("bookings")
+            .select("room_number, check_in, check_out")
+            .in_("room_number", room_numbers)
+            .eq("is_cancelled", False)
+            .execute()
+        )
+        bookings_by_room = {}
+        for b in bookings_result.data or []:
+            rn = b.get("room_number")
+            bookings_by_room.setdefault(rn, []).append(b)
+
+        today = date.today()
         rooms = []
-        for room_data in rooms_result.data:
-            stored_status = room_data["status"]
-            dynamic_status = determine_room_status(room_data["room_number"], stored_status)
+        for r in rows:
+            stored_status = r.get("status")
+            rn = r.get("room_number")
+            dynamic_status = stored_status
 
-            room = {
-                "room_id": room_data["room_id"],  # use this in frontend if needed
-                "room_number": room_data["room_number"],
-                "room_type": room_data["room_type"],
+            for booking in bookings_by_room.get(rn, []):
+                try:
+                    ci = booking.get("check_in")
+                    co = booking.get("check_out")
+                    check_in = datetime.strptime(ci, "%Y-%m-%d").date() if isinstance(ci, str) else ci
+                    check_out = datetime.strptime(co, "%Y-%m-%d").date() if isinstance(co, str) else co
+                    if check_in <= today < check_out:
+                        dynamic_status = "Occupied"
+                        break
+                except Exception:
+                    continue
+
+            rooms.append({
+                "room_number": rn,
+                "room_type": r.get("room_type"),
                 "status": dynamic_status,
-                "price": int(room_data["price"]) if room_data["price"] else 0,
-                "capacity": room_data["capacity"] if room_data["capacity"] else 0,
-                "floor": room_data["floor"],
-                "amenities": room_data["amenities"] if room_data["amenities"] else []
-            }
+                "price": int(r.get("price") or 0),
+                "capacity": r.get("capacity") or 0,
+                "floor": r.get("floor"),
+                "amenities": r.get("amenities") or []
+            })
 
-            rooms.append(room)
-
-        return {
-            "rooms": rooms,
-            "total_count": total_count
-        }
+        # Cache search results briefly
+        CacheManager.set_cache(cache_key, rooms, CacheManager.DEFAULT_TTL)
+        return rooms
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
-@router.get("/rooms/{room_number}")
-def get_room(room_number: str):
-    try:
-        result = supabase.table("rooms_with_details").select("*").eq("room_number", room_number).execute()
-        
-        if not result.data:
-            raise HTTPException(status_code=404, detail="Room not found")
-        
-        room_data = result.data[0]
-        stored_status = room_data["status"]
-        dynamic_status = determine_room_status(room_number, stored_status)
-        
-        room = {
-            "room_number": room_data["room_number"],
-            "room_type": room_data["room_type"],
-            "status": dynamic_status,  # Use dynamic status
-            "price": int(room_data["price"]) if room_data["price"] else 0,
-            "capacity": room_data["capacity"] if room_data["capacity"] else 0,
-            "floor": room_data["floor"],
-            "amenities": room_data["amenities"] if room_data["amenities"] else []
-        }
-        
-        return room
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/rooms")
 def add_room(room_data: dict):
+    """Add a new room (only invalidate related cache)."""
     try:
-        # Get room type details by name
-        room_type_result = supabase.table("room_types").select("*").eq("name", room_data["room_type"]).execute()
-        if not room_type_result.data:
+        rtype_res = supabase.table("room_types").select("*").eq("name", room_data["room_type"]).execute()
+        if not rtype_res.data:
             raise HTTPException(status_code=400, detail="Invalid room type")
-                
-        room_type = room_type_result.data[0]
-        if not room_type["is_available"]:
-            raise HTTPException(status_code=400, detail="This room type is not available")
-                
-        # Check if room number already exists
-        existing_room = supabase.table("rooms").select("room_number").eq("room_number", room_data["room_number"]).execute()
-        if existing_room.data:
+
+        rtype = rtype_res.data[0]
+        if not rtype["is_available"]:
+            raise HTTPException(status_code=400, detail="This room type is unavailable")
+
+        exists = supabase.table("rooms").select("room_number").eq("room_number", room_data["room_number"]).execute()
+        if exists.data:
             raise HTTPException(status_code=400, detail="Room number already exists")
-                
-        # Create room with room_type_id foreign key AND room_type name
-        room_insert_data = {
+
+        insert_data = {
             "room_number": room_data["room_number"],
-            "room_type_id": room_type["id"],
-            "room_type": room_type["name"],  # ADD THIS LINE - this is the fix!
+            "room_type_id": rtype["id"],
+            "room_type": rtype["name"],
             "status": room_data.get("status", "Available"),
             "floor": room_data["floor"]
         }
-                
-        result = supabase.table("rooms").insert(room_insert_data).execute()
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to create room")
-                
+        supabase.table("rooms").insert(insert_data).execute()
+
+        CacheManager.delete_cache(CacheManager.ROOM_STATS_KEY)
+        CacheManager.delete_pattern("rooms_list:*")
         return {"message": "Room added successfully"}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/rooms/{room_number}")
-def update_room(room_number: str, room_data: dict):
+async def update_room(room_number: str, room_data: dict):
+    """Update specific room status with safe cache invalidation."""
     try:
-        # Fetch current room
-        current_room_result = supabase.table("rooms").select("*").eq("room_number", room_number).execute()
-        if not current_room_result.data:
+        current = supabase.table("rooms").select("*").eq("room_number", room_number).execute().data
+        if not current:
             raise HTTPException(status_code=404, detail="Room not found")
-        
-        current_room = current_room_result.data[0]
+
+        current = current[0]
         new_status = room_data.get("status")
-        
-        if new_status and new_status != current_room["status"]:
-            # Check if room has active bookings
-            has_active_bookings = check_room_has_active_bookings(room_number)
-            
-            # Get current dynamic status
-            current_dynamic_status = determine_room_status(room_number, current_room["status"])
-            
-            # Validation rules for status changes
-            if new_status == "Maintenance":
-                if has_active_bookings:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Cannot change status to Maintenance. Room has active bookings. Please wait for the current booking to end or cancel it first."
-                    )
-                # Only allow changing to Maintenance if room is currently Available (dynamically)
-                if current_dynamic_status == "Occupied":
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Cannot change status to Maintenance while room is Occupied. Please wait for the guest to check out."
-                    )
-            
-            # Prevent manual setting to Occupied (should be dynamic only)
-            if new_status == "Occupied":
-                if not has_active_bookings:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Cannot manually set room status to Occupied. Room status is automatically set to Occupied when there are active bookings."
-                    )
-            
-            # If changing from any status to Available, ensure no active bookings
-            if new_status == "Available" and has_active_bookings:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Cannot change status to Available while room has active bookings."
-                )
-        
-        # Only allow status updates for existing rooms
-        update_data = {"status": new_status} if new_status else {}
-        
-        if update_data:
-            supabase.table("rooms").update(update_data).eq("room_number", room_number).execute()
-            return {"message": "Room updated successfully"}
-        else:
+        if not new_status or new_status == current["status"]:
             return {"message": "No changes made"}
-        
+
+        active = check_room_has_active_bookings(room_number)
+        dynamic = determine_room_status(room_number, current["status"])
+
+        if new_status == "Maintenance":
+            if active or dynamic == "Occupied":
+                raise HTTPException(status_code=400, detail="Cannot change to Maintenance while active/occupied.")
+        if new_status == "Occupied" and not active:
+            raise HTTPException(status_code=400, detail="Cannot manually mark room as Occupied.")
+        if new_status == "Available" and active:
+            raise HTTPException(status_code=400, detail="Room still has active bookings.")
+
+        supabase.table("rooms").update({"status": new_status}).eq("room_number", room_number).execute()
+
+        if new_status in ["Maintenance", "Occupied"]:
+            await trigger_room_status_changed(room_number=room_number, new_status=new_status)
+
+        CacheManager.delete_cache(f"room:{room_number}")
+        CacheManager.delete_cache(CacheManager.ROOM_STATS_KEY)
+        CacheManager.delete_pattern("rooms_list:*")
+        return {"message": "Room updated successfully"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.delete("/rooms/{room_number}")
 def delete_room(room_number: str):
+    """Delete a room and clear related cache only."""
     try:
-        # Check if room has any bookings
-        bookings_result = supabase.table("bookings").select("id").eq("room_number", room_number).execute()
-        if bookings_result.data:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete room with existing bookings. Please cancel all bookings first."
-            )
-        
-        result = supabase.table("rooms").delete().eq("room_number", room_number).execute()
-        if not result.data:
+        bookings = supabase.table("bookings").select("id").eq("room_number", room_number).execute().data
+        if bookings:
+            raise HTTPException(status_code=400, detail="Cannot delete room with existing bookings.")
+
+        res = supabase.table("rooms").delete().eq("room_number", room_number).execute()
+        if not res.data:
             raise HTTPException(status_code=404, detail="Room not found")
-        
+
+        CacheManager.delete_cache(f"room:{room_number}")
+        CacheManager.delete_cache(CacheManager.ROOM_STATS_KEY)
+        CacheManager.delete_pattern("rooms_list:*")
         return {"message": "Room deleted successfully"}
     except HTTPException:
         raise

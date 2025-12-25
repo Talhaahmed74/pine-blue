@@ -44,7 +44,7 @@ const FeaturedRooms = () => {
   useEffect(() => {
     const fetchRoomTypes = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/room-types`)
+        const response = await fetch(`${API_BASE_URL}/availability/room-types-with-availability` )
         if (!response.ok) {
           throw new Error("Failed to fetch room types")
         }

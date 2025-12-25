@@ -138,7 +138,7 @@ const PaymentSuccess = () => {
         // Method 1: Try to get from room type API
         try {
           // First, try to find room type by name to get the ID
-          const roomTypesResponse = await fetch(`${API_BASE_URL}/room-types-with-availability`)
+          const roomTypesResponse = await fetch(`${API_BASE_URL}/availability/room-types-with-availability`)
           const roomTypesData = await roomTypesResponse.json()
           const matchingRoomType = roomTypesData.find((rt: any) => rt.name === bookingData.room_type)
 
